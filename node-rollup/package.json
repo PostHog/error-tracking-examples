@@ -1,0 +1,24 @@
+{
+  "name": "node-rollup",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal Node.js + Rollup app instrumented with PostHog error tracking and source map upload.",
+  "scripts": {
+    "build": "rollup -c",
+    "start": "node dist/index.js",
+    "throw": "npm run build && npm run start"
+  },
+  "dependencies": {
+    "posthog-node": "^5.38.4"
+  },
+  "devDependencies": {
+    "@posthog/rollup-plugin": "^1.4.7",
+    "@rollup/plugin-typescript": "^12.1.1",
+    "@types/node": "^22.0.0",
+    "dotenv": "^17.0.0",
+    "rollup": "^4.30.1",
+    "tslib": "^2.7.0",
+    "typescript": "^5.6.0"
+  }
+}
