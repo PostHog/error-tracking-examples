@@ -25,7 +25,6 @@ UDID=$(xcrun simctl list devices booted | grep -m1 -oE '[0-9A-F-]{36}' || true)
   { echo "No iPhone simulator found" >&2; exit 1; }
 
 mkdir -p build
-UUID_SETS=()
 for brand in "${BRANDS[@]}"; do
   IFS='|' read -r slug display color <<<"$brand"
   echo "== Build brand '$slug'"
@@ -54,16 +53,8 @@ for brand in "${BRANDS[@]}"; do
     "$app/Info.plist"
   codesign --force --sign - "$app" 2>/dev/null
 
-  uuids=$(uuid_set "build/pipeline-$slug/Whitelabel.app.dSYM")
-  echo "  dSYM UUIDs: $uuids"
-  UUID_SETS+=("$uuids")
+  echo "  dSYM UUIDs: $(uuid_set "build/pipeline-$slug/Whitelabel.app.dSYM")"
 done
-
-if [[ "${UUID_SETS[0]}" == "${UUID_SETS[1]}" ]]; then
-  echo "== Both builds produced identical dSYM UUIDs"
-else
-  echo "== NOTE: UUIDs differ - still fine, each build uploads its own dSYM below"
-fi
 
 if [[ -n "${POSTHOG_CLI_API_KEY:-}" && -n "${POSTHOG_CLI_PROJECT_ID:-}" ]]; then
   echo "== Upload each build's dSYM - in parallel, same release name"
