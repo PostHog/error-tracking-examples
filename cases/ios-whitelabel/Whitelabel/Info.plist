@@ -4,13 +4,13 @@
 <dict>
 	<key>CFBundleDisplayName</key>
 	<string>Whitelabel</string>
-	<key>PostHogHost</key>
-	<string>https://us.posthog.com</string>
-	<key>PostHogProjectToken</key>
-	<string></string>
-	<key>WhitelabelBrandColor</key>
-	<string>#8F8F8F</string>
 	<key>WhitelabelBrandName</key>
 	<string>core</string>
+	<key>WhitelabelBrandColor</key>
+	<string>#8F8F8F</string>
+	<key>PostHogProjectToken</key>
+	<string>phc_raG2H9V246hkNZk6K89DZGG98qQyPrKKlicifGlpOXA</string>
+	<key>PostHogHost</key>
+	<string>https://internal-c.posthog.com</string>
 </dict>
 </plist>

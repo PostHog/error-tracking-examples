@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 #
-# Builds the same app once per brand (like separate CI pipelines), shows the
-# builds share identical dSYM UUIDs, uploads each build's dSYM in parallel
-# under ONE shared release name (never a bundle ID), and installs both apps.
-# Duplicate uploads are no-ops, so the pipelines need no coordination.
+# Builds the same app once per brand (like separate CI pipelines) and installs
+# both. There is no bespoke upload step here: each build's Xcode "Upload dSYMs
+# to PostHog" run-script phase uploads that build's dSYM the exact way a real
+# app ships. The phase forces ONE shared release name (never a bundle ID). The
+# builds share identical dSYM UUIDs, so whichever pipeline uploads first
+# attaches the symbol set and the rest are no-ops - no coordination or ordering.
 #
 # Usage: ./build.sh [phc_PROJECT_TOKEN] [host]
 #   Defaults come from PostHogProjectToken / PostHogHost in Whitelabel/Info.plist.
@@ -14,11 +16,15 @@ cd "$(dirname "$0")"
 
 TOKEN="${1:-$(/usr/libexec/PlistBuddy -c 'Print :PostHogProjectToken' Whitelabel/Info.plist)}"
 HOST="${2:-$(/usr/libexec/PlistBuddy -c 'Print :PostHogHost' Whitelabel/Info.plist)}"
-CLI="${POSTHOG_CLI_BIN:-posthog-cli}"
-RELEASE=(--release-name ios-whitelabel-demo --release-version 1.0 --build 1)
 BRANDS=("red|Acme Red|#F54E00" "blue|Acme Blue|#1D4AFF")
 PRODUCTS="build/derived/Build/Products/Release-iphonesimulator"
 uuid_set() { dwarfdump --uuid "$1" | awk '{print $2}' | sort | paste -sd' ' -; }
+
+# The upload runs inside xcodebuild's build phase, which inherits this env.
+export POSTHOG_CLI_HOST="${POSTHOG_CLI_HOST:-$HOST}"
+if [[ -z "${POSTHOG_CLI_API_KEY:-}" || -z "${POSTHOG_CLI_PROJECT_ID:-}" ]]; then
+  echo "== Upload will be skipped - set POSTHOG_CLI_PROJECT_ID and POSTHOG_CLI_API_KEY to enable"
+fi
 
 UDID=$(xcrun simctl list devices booted | grep -m1 -oE '[0-9A-F-]{36}' || true)
 [[ -n "$UDID" ]] || UDID=$(xcrun simctl list devices available | grep iPhone | grep -m1 -oE '[0-9A-F-]{36}') ||
@@ -27,7 +33,7 @@ UDID=$(xcrun simctl list devices booted | grep -m1 -oE '[0-9A-F-]{36}' || true)
 mkdir -p build
 for brand in "${BRANDS[@]}"; do
   IFS='|' read -r slug display color <<<"$brand"
-  echo "== Build brand '$slug'"
+  echo "== Build brand '$slug' (its build phase uploads the dSYM)"
   # Fresh full build each time. Same workspace path for both builds - that's
   # what makes the binaries (and dSYM UUIDs) come out identical, as on CI
   # runners with a fixed checkout path.
@@ -38,11 +44,11 @@ for brand in "${BRANDS[@]}"; do
     CODE_SIGNING_ALLOWED=NO build >"build/xcodebuild-$slug.log" 2>&1 ||
     { tail -20 "build/xcodebuild-$slug.log"; exit 1; }
 
+  echo "  dSYM UUIDs: $(uuid_set "$PRODUCTS/Whitelabel.app.dSYM")"
+
   app="build/Whitelabel-$slug.app"
-  rm -rf "$app" "build/pipeline-$slug"
+  rm -rf "$app"
   cp -R "$PRODUCTS/Whitelabel.app" "$app"
-  mkdir -p "build/pipeline-$slug"
-  cp -R "$PRODUCTS/Whitelabel.app.dSYM" "build/pipeline-$slug/"
 
   /usr/libexec/PlistBuddy \
     -c "Set :CFBundleDisplayName $display" \
@@ -52,27 +58,7 @@ for brand in "${BRANDS[@]}"; do
     -c "Set :PostHogHost $HOST" \
     "$app/Info.plist"
   codesign --force --sign - "$app" 2>/dev/null
-
-  echo "  dSYM UUIDs: $(uuid_set "build/pipeline-$slug/Whitelabel.app.dSYM")"
 done
-
-if [[ -n "${POSTHOG_CLI_API_KEY:-}" && -n "${POSTHOG_CLI_PROJECT_ID:-}" ]]; then
-  echo "== Upload each build's dSYM - in parallel, same release name"
-  export POSTHOG_CLI_HOST="${POSTHOG_CLI_HOST:-$HOST}"
-  pids=()
-  for brand in "${BRANDS[@]}"; do
-    slug="${brand%%|*}"
-    "$CLI" dsym upload --directory "build/pipeline-$slug" "${RELEASE[@]}" --include-source \
-      >"build/upload-$slug.log" 2>&1 &
-    pids+=($!)
-  done
-  for pid in "${pids[@]}"; do
-    wait "$pid" || { echo "Upload failed - see build/upload-*.log" >&2; exit 1; }
-  done
-  echo "  Done: one upload attached the symbol set, the duplicate was a no-op"
-else
-  echo "== Upload skipped - set POSTHOG_CLI_PROJECT_ID and POSTHOG_CLI_API_KEY"
-fi
 
 echo "== Install both apps"
 xcrun simctl bootstatus "$UDID" -b >/dev/null
