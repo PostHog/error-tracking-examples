@@ -5,7 +5,7 @@
   "description": "Minimal Node.js app instrumented with PostHog error tracking, using the raw posthog-cli to inject chunk IDs and upload source maps (no bundler plugin).",
   "scripts": {
     "build": "esbuild src/*.ts --outdir=dist --platform=node --format=cjs --minify --sourcemap",
-    "process": "posthog-cli --env-file .env sourcemap inject --directory ./dist && posthog-cli --env-file .env sourcemap upload --directory ./dist",
+    "process": "CLI=/Users/ablaszkiewicz/Documents/repos/posthog/cli/target/debug/posthog-cli; $CLI --env-file .env sourcemap inject --directory ./dist --experimental-release-injection && $CLI --env-file .env sourcemap upload --directory ./dist",
     "start": "pnpm build && pnpm process && node --env-file=.env dist/index.js"
   },
   "dependencies": {
