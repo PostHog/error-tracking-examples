@@ -1,7 +1,6 @@
 import type { PostHog } from 'posthog-node'
-
-const x = 'asd'
+import { threeChanged } from './three'
 
 export function two(posthog: PostHog) {
-  posthog.captureException(new Error('boom'), 'user')
+  threeChanged(posthog)
 }

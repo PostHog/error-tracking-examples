@@ -1,0 +1,7 @@
+{
+  "name": "posthog-js",
+  "version": "1.407.3",
+  "type": "module",
+  "main": "dist/index.mjs",
+  "module": "dist/index.mjs"
+}

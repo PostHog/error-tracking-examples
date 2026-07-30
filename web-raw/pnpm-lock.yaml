@@ -8,13 +8,10 @@ importers:
 
   .:
     dependencies:
-      posthog-node:
-        specifier: file:./vendor/node
-        version: file:vendor/node
+      posthog-js:
+        specifier: file:./vendor/posthog-js
+        version: file:vendor/posthog-js
     devDependencies:
-      '@posthog/cli':
-        specifier: latest
-        version: 0.9.2
       esbuild:
         specifier: ^0.25.9
         version: 0.25.12
@@ -177,31 +174,13 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@posthog/cli@0.9.2':
-    resolution: {integrity: sha512-vnUT8K0UwFIeYt2Su1BVzjNm5JBWihxGve6V8I6ZsUvbtCf1zPEXmGtQD1Nrelgk5tl9xVuTXPhYv3heG7027g==}
-    engines: {node: '>=14.14', npm: '>=6'}
-    hasBin: true
-
-  '@posthog/core@file:vendor/core':
-    resolution: {directory: vendor/core, type: directory}
-
-  detect-libc@2.1.2:
-    resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
-    engines: {node: '>=8'}
-
   esbuild@0.25.12:
     resolution: {integrity: sha512-bbPBYYrtZbkt6Os6FiTLCTFxvq4tt3JKall1vRwshA3fdVztsLAatFaZobhkBC8/BrPetoa0oksYoKXoG4ryJg==}
     engines: {node: '>=18'}
     hasBin: true
 
-  posthog-node@file:vendor/node:
-    resolution: {directory: vendor/node, type: directory}
-    engines: {node: ^20.20.0 || >=22.22.0}
-    peerDependencies:
-      rxjs: ^7.0.0
-    peerDependenciesMeta:
-      rxjs:
-        optional: true
+  posthog-js@file:vendor/posthog-js:
+    resolution: {directory: vendor/posthog-js, type: directory}
 
 snapshots:
 
@@ -283,14 +262,6 @@ snapshots:
   '@esbuild/win32-x64@0.25.12':
     optional: true
 
-  '@posthog/cli@0.9.2':
-    dependencies:
-      detect-libc: 2.1.2
-
-  '@posthog/core@file:vendor/core': {}
-
-  detect-libc@2.1.2: {}
-
   esbuild@0.25.12:
     optionalDependencies:
       '@esbuild/aix-ppc64': 0.25.12
@@ -320,6 +291,4 @@ snapshots:
       '@esbuild/win32-ia32': 0.25.12
       '@esbuild/win32-x64': 0.25.12
 
-  posthog-node@file:vendor/node:
-    dependencies:
-      '@posthog/core': file:vendor/core
+  posthog-js@file:vendor/posthog-js: {}
