@@ -2,18 +2,20 @@
   "name": "web-raw",
   "version": "0.1.0",
   "private": true,
+  "description": "Minimal browser app instrumented with PostHog error tracking, using the published posthog-cli to inject chunk IDs and upload source maps (no bundler plugin).",
   "scripts": {
     "build": "esbuild src/index.ts src/one.ts src/two.ts src/three.ts --bundle --splitting --format=esm --outdir=dist --sourcemap --minify",
-    "process": "/Users/ablaszkiewicz/Documents/repos/posthog/cli/target/debug/posthog-cli --env-file .env sourcemap process --directory ./dist --experimental-release-injection",
+    "process": "posthog-cli --dotenv-file .env sourcemap process --directory ./dist",
     "start": "pnpm build && pnpm process && node serve.mjs"
   },
   "dependencies": {
-    "posthog-js": "file:./vendor/posthog-js"
+    "posthog-js": "latest"
   },
   "devDependencies": {
+    "@posthog/cli": "latest",
     "esbuild": "^0.25.9"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": ["@posthog/cli", "esbuild"]
   }
 }

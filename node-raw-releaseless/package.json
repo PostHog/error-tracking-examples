@@ -1,0 +1,24 @@
+{
+  "name": "node-raw-releaseless",
+  "version": "0.1.0",
+  "private": true,
+  "description": "node-raw wired to a locally-built posthog-cli, for developing the release-decoupling (releaseless) error-tracking flow before it ships.",
+  "scripts": {
+    "build": "esbuild src/*.ts --outdir=dist --platform=node --format=cjs --minify --sourcemap",
+    "process": "/Users/ablaszkiewicz/Documents/repos/posthog/cli/target/debug/posthog-cli --env-file .env sourcemap process --directory ./dist --no-release-bind --force",
+    "process:bound": "/Users/ablaszkiewicz/Documents/repos/posthog/cli/target/debug/posthog-cli --env-file .env sourcemap process --directory ./dist",
+    "clean": "rm -rf dist",
+    "run:app": "node --env-file=.env dist/index.js",
+    "start": "pnpm clean && pnpm build && pnpm process && pnpm run:app",
+    "start:bound": "pnpm clean && pnpm build && pnpm process:bound && pnpm run:app"
+  },
+  "dependencies": {
+    "posthog-node": "^5.47.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.9"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}

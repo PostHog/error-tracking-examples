@@ -8,13 +8,10 @@ importers:
 
   .:
     dependencies:
-      posthog-node:
-        specifier: latest
-        version: 5.46.1
+      posthog-js:
+        specifier: file:./vendor/posthog-js
+        version: file:vendor/posthog-js
     devDependencies:
-      '@posthog/cli':
-        specifier: latest
-        version: 0.9.3
       esbuild:
         specifier: ^0.25.9
         version: 0.25.12
@@ -177,34 +174,13 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@posthog/cli@0.9.3':
-    resolution: {integrity: sha512-x7g6gKD1L9Vtp0AUIJHeeDHg//qTq5BRmPcTYN6VsG/ACS+CdfHXecIKH10cFx1Qigeth2mdlUqusRn+86Ry+w==}
-    engines: {node: '>=14.14', npm: '>=6'}
-    hasBin: true
-
-  '@posthog/core@1.45.3':
-    resolution: {integrity: sha512-6TO+OQMkmXT0RqJkv+0IjcZVh8iazvjoJLCpVoyzeSuyZxaxYwVeFPZfxUd+QpbmyV+GiIv8JCzl3+UUpmBm+w==}
-
-  '@posthog/types@1.399.0':
-    resolution: {integrity: sha512-/WDwBzqIPko8VJ1B+0rlso2XQEz9+2sqtsY9Tqy3p1GhgTqsFakcz/PmMpAnA321LTEZVRcO6x5hAwABV4yrDw==}
-
-  detect-libc@2.1.2:
-    resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
-    engines: {node: '>=8'}
-
   esbuild@0.25.12:
     resolution: {integrity: sha512-bbPBYYrtZbkt6Os6FiTLCTFxvq4tt3JKall1vRwshA3fdVztsLAatFaZobhkBC8/BrPetoa0oksYoKXoG4ryJg==}
     engines: {node: '>=18'}
     hasBin: true
 
-  posthog-node@5.46.1:
-    resolution: {integrity: sha512-WjCqExq44pBdyg9MSsH6UAE0tNZ88p4aIuVFicgqhjf2Fbws6IhS4ioYUa4aBrbUPS9EDRXtBTtF5DpP1ml8Pw==}
-    engines: {node: ^20.20.0 || >=22.22.0}
-    peerDependencies:
-      rxjs: ^7.0.0
-    peerDependenciesMeta:
-      rxjs:
-        optional: true
+  posthog-js@file:vendor/posthog-js:
+    resolution: {directory: vendor/posthog-js, type: directory}
 
 snapshots:
 
@@ -286,18 +262,6 @@ snapshots:
   '@esbuild/win32-x64@0.25.12':
     optional: true
 
-  '@posthog/cli@0.9.3':
-    dependencies:
-      detect-libc: 2.1.2
-
-  '@posthog/core@1.45.3':
-    dependencies:
-      '@posthog/types': 1.399.0
-
-  '@posthog/types@1.399.0': {}
-
-  detect-libc@2.1.2: {}
-
   esbuild@0.25.12:
     optionalDependencies:
       '@esbuild/aix-ppc64': 0.25.12
@@ -327,6 +291,4 @@ snapshots:
       '@esbuild/win32-ia32': 0.25.12
       '@esbuild/win32-x64': 0.25.12
 
-  posthog-node@5.46.1:
-    dependencies:
-      '@posthog/core': 1.45.3
+  posthog-js@file:vendor/posthog-js: {}

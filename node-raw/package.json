@@ -2,14 +2,14 @@
   "name": "node-raw",
   "version": "0.1.0",
   "private": true,
-  "description": "Minimal Node.js app instrumented with PostHog error tracking, using the raw posthog-cli to inject chunk IDs and upload source maps (no bundler plugin).",
+  "description": "Minimal Node.js app instrumented with PostHog error tracking, using the published posthog-cli to inject chunk IDs and upload source maps (no bundler plugin).",
   "scripts": {
     "build": "esbuild src/*.ts --outdir=dist --platform=node --format=cjs --minify --sourcemap",
-    "process": "/Users/ablaszkiewicz/Documents/repos/posthog/cli/target/debug/posthog-cli --env-file .env sourcemap process --directory ./dist",
+    "process": "posthog-cli --dotenv-file .env sourcemap process --directory ./dist",
     "start": "pnpm build && pnpm process && node --env-file=.env dist/index.js"
   },
   "dependencies": {
-    "posthog-node": "file:./vendor/node"
+    "posthog-node": "latest"
   },
   "devDependencies": {
     "@posthog/cli": "latest",
