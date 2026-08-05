@@ -1,0 +1,37 @@
+# mprocs config for the error-tracking examples.
+#
+#   mprocs --config mprocs.yaml
+#
+# All procs are off by default — start each one manually from the mprocs UI.
+# (ios-raw is a Swift app with no package.json, so it has no proc here.)
+
+procs:
+  node-raw:
+    shell: 'pnpm install && pnpm start'
+    cwd: node-raw
+    autostart: false
+
+  node-raw-releaseless:
+    shell: 'pnpm install && pnpm start'
+    cwd: node-raw-releaseless
+    autostart: false
+
+  node-rollup:
+    shell: 'pnpm install && pnpm run throw'
+    cwd: node-rollup
+    autostart: false
+
+  node-rollup-releaseless:
+    shell: 'pnpm install && pnpm start'
+    cwd: node-rollup-releaseless
+    autostart: false
+
+  web-raw:
+    shell: 'pnpm install && pnpm start'
+    cwd: web-raw
+    autostart: false
+
+  web-raw-releaseless:
+    shell: 'pnpm install && pnpm start'
+    cwd: web-raw-releaseless
+    autostart: false
