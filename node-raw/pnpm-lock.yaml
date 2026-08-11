@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       posthog-node:
-        specifier: latest
-        version: 5.46.1
+        specifier: 5.48.1
+        version: 5.48.1
     devDependencies:
       '@posthog/cli':
         specifier: latest
@@ -182,11 +182,11 @@ packages:
     engines: {node: '>=14.14', npm: '>=6'}
     hasBin: true
 
-  '@posthog/core@1.45.3':
-    resolution: {integrity: sha512-6TO+OQMkmXT0RqJkv+0IjcZVh8iazvjoJLCpVoyzeSuyZxaxYwVeFPZfxUd+QpbmyV+GiIv8JCzl3+UUpmBm+w==}
+  '@posthog/core@1.47.0':
+    resolution: {integrity: sha512-LW62V+9yx7G7mLd+EYpwW0PiaPZI8XRJ1tLuhw+9fXHpugLp8XQD5JuCQ2kIXvoUfyx1DpKfGQY3dUnzMOIn7Q==}
 
-  '@posthog/types@1.399.0':
-    resolution: {integrity: sha512-/WDwBzqIPko8VJ1B+0rlso2XQEz9+2sqtsY9Tqy3p1GhgTqsFakcz/PmMpAnA321LTEZVRcO6x5hAwABV4yrDw==}
+  '@posthog/types@1.402.2':
+    resolution: {integrity: sha512-ZZTiS4dLwF4/D0YTzS3gGSLFnhuNOY5yu4d9VGS9trGe5GW6FjIXo20p18K5BPW2RZSYSld8sdnSAY3AUXleUQ==}
 
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
@@ -197,8 +197,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  posthog-node@5.46.1:
-    resolution: {integrity: sha512-WjCqExq44pBdyg9MSsH6UAE0tNZ88p4aIuVFicgqhjf2Fbws6IhS4ioYUa4aBrbUPS9EDRXtBTtF5DpP1ml8Pw==}
+  posthog-node@5.48.1:
+    resolution: {integrity: sha512-BxLX2SqGEQhPqCPTalpyo0RRv1NMbf7UaN7q9d/ED77ksD6XOmE7ko2vIKO8F0zPL1NtKxIi+DYXap9lvR0RaA==}
     engines: {node: ^20.20.0 || >=22.22.0}
     peerDependencies:
       rxjs: ^7.0.0
@@ -290,11 +290,11 @@ snapshots:
     dependencies:
       detect-libc: 2.1.2
 
-  '@posthog/core@1.45.3':
+  '@posthog/core@1.47.0':
     dependencies:
-      '@posthog/types': 1.399.0
+      '@posthog/types': 1.402.2
 
-  '@posthog/types@1.399.0': {}
+  '@posthog/types@1.402.2': {}
 
   detect-libc@2.1.2: {}
 
@@ -327,6 +327,6 @@ snapshots:
       '@esbuild/win32-ia32': 0.25.12
       '@esbuild/win32-x64': 0.25.12
 
-  posthog-node@5.46.1:
+  posthog-node@5.48.1:
     dependencies:
-      '@posthog/core': 1.45.3
+      '@posthog/core': 1.47.0

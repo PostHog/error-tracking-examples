@@ -1,6 +1,6 @@
 import type { PostHog } from 'posthog-node'
-import { three } from './three'
+import { threeRenamed } from './three'
 
 export function two(posthog: PostHog) {
-  three(posthog)
+  threeRenamed(posthog)
 }

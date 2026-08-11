@@ -3,6 +3,8 @@
 #   mprocs --config mprocs.yaml
 #
 # All procs are off by default — start each one manually from the mprocs UI.
+# Each example has two procs: the normal release-binding flow, and the experimental
+# --no-release-bind flow (releaseless).
 # (ios-raw is a Swift app with no package.json, so it has no proc here.)
 
 procs:
@@ -11,19 +13,19 @@ procs:
     cwd: node-raw
     autostart: false
 
-  node-raw-releaseless:
-    shell: 'pnpm install && pnpm start'
-    cwd: node-raw-releaseless
+  node-raw (releaseless):
+    shell: 'pnpm install && pnpm start:releaseless'
+    cwd: node-raw
     autostart: false
 
   node-rollup:
-    shell: 'pnpm install && pnpm run throw'
+    shell: 'pnpm install && pnpm start'
     cwd: node-rollup
     autostart: false
 
-  node-rollup-releaseless:
-    shell: 'pnpm install && pnpm start'
-    cwd: node-rollup-releaseless
+  node-rollup (releaseless):
+    shell: 'pnpm install && pnpm start:releaseless'
+    cwd: node-rollup
     autostart: false
 
   web-raw:
@@ -31,7 +33,7 @@ procs:
     cwd: web-raw
     autostart: false
 
-  web-raw-releaseless:
-    shell: 'pnpm install && pnpm start'
-    cwd: web-raw-releaseless
+  web-raw (releaseless):
+    shell: 'pnpm install && pnpm start:releaseless'
+    cwd: web-raw
     autostart: false

@@ -2,14 +2,18 @@
   "name": "node-raw",
   "version": "0.1.0",
   "private": true,
-  "description": "Minimal Node.js app instrumented with PostHog error tracking, using the published posthog-cli to inject chunk IDs and upload source maps (no bundler plugin).",
+  "description": "Minimal Node.js app instrumented with PostHog error tracking, using posthog-cli to inject chunk IDs and upload source maps (no bundler plugin). `start` is the published CLI on the normal release-binding path; `start:releaseless` is a locally-built CLI with --no-release-bind.",
   "scripts": {
     "build": "esbuild src/*.ts --outdir=dist --platform=node --format=cjs --minify --sourcemap",
+    "clean": "rm -rf dist",
     "process": "posthog-cli --dotenv-file .env sourcemap process --directory ./dist",
-    "start": "pnpm build && pnpm process && node --env-file=.env dist/index.js"
+    "process:releaseless": "/Users/ablaszkiewicz/Documents/repos/posthog/cli/target/debug/posthog-cli --dotenv-file .env sourcemap process --directory ./dist --no-release-bind --force",
+    "run:app": "node --env-file=.env dist/index.js",
+    "start": "pnpm clean && pnpm build && pnpm process && pnpm run:app",
+    "start:releaseless": "pnpm clean && pnpm build && pnpm process:releaseless && pnpm run:app"
   },
   "dependencies": {
-    "posthog-node": "latest"
+    "posthog-node": "5.48.1"
   },
   "devDependencies": {
     "@posthog/cli": "latest",

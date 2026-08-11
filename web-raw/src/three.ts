@@ -1,5 +1,5 @@
 import type { PostHog } from 'posthog-js'
 
-export function three(posthog: PostHog) {
+export function threeRenamed(posthog: PostHog) {
   posthog.captureException(new Error('boom'))
 }

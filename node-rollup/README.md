@@ -2,10 +2,15 @@
 
 Minimal Node.js + Rollup app instrumented with PostHog error tracking and source map upload.
 
-On run it captures **5 distinct exceptions** (a `TypeError`, `RangeError`, `SyntaxError`, a custom
-`PaymentDeclinedError`, and an async rejection), each thrown from its own nested call chain so every
-captured issue has a different multi-frame stack. Because the app runs the Rollup-built bundle, those
-stacks only resolve back to `src/index.ts` if source maps were uploaded — which the build does.
+On run it throws through a 3-deep call chain (`one -> two -> threeRenamed`) and captures the exception,
+so the minified stack only resolves back to `src/*.ts` if the uploaded map is found via the chunk id.
+
+Two build paths share the app:
+
+| Command | What it exercises |
+| --- | --- |
+| `pnpm start` | The normal flow — the plugin generates chunk ids and the uploaded symbol sets are bound to a release. |
+| `pnpm start:releaseless` | The experimental flow — `--no-release-bind`, described below. |
 
 ## How it works
 
@@ -14,15 +19,58 @@ stacks only resolve back to `src/index.ts` if source maps were uploaded — whic
   the source maps using the personal API key (`POSTHOG_API_KEY`). Rollup does not auto-load `.env`, so
   `import 'dotenv/config'` runs first.
 
+### What `start:releaseless` adds
+
+`POSTHOG_NO_RELEASE_BIND=1` flips `sourcemaps.noReleaseBind` on, and then:
+
+- The plugin sets rollup's `output.sourcemapDebugIds` (rollup >= 4.28), so rollup itself stamps an
+  ECMA-426 debug id: a `//# debugId=<uuid>` comment in `dist/index.js` and a `debugId` field in
+  `dist/index.js.map`. The id is a content hash - rebuilds of identical code keep the same id.
+- The plugin passes `--no-release-bind` to `posthog-cli sourcemap process`, which adopts that debug id as
+  the chunk id (instead of generating a random one), injects `_posthogChunkIds` + `_posthogReleaseId`
+  snippets, and uploads the map without binding the symbol set to a release.
+
+## Local bits this depends on
+
+Both paths run local builds, because neither the plugin change nor the CLI change has shipped.
+
+- `vendor/posthog-plugin-utils.tgz` + `vendor/posthog-rollup-plugin.tgz` - packed from the
+  `ab/feat/rollup-debug-ids` branch of [posthog-js PR #4401](https://github.com/PostHog/posthog-js/pull/4401).
+  `package.json` consumes the plugin via `file:`, and a pnpm override forces its `@posthog/plugin-utils`
+  dependency onto the local tarball too. To refresh after changing the branch:
+
+  ```bash
+  cd ~/Documents/repos/posthog-js
+  git worktree add /tmp/pjs-debug-ids origin/ab/feat/rollup-debug-ids
+  cd /tmp/pjs-debug-ids
+  pnpm install --filter "@posthog/rollup-plugin..."
+  pnpm --filter @posthog/plugin-utils build && pnpm --filter @posthog/rollup-plugin build
+  cd packages/plugin-utils && pnpm pack --out <this-app>/vendor/posthog-plugin-utils.tgz
+  cd ../rollup-plugin   && pnpm pack --out <this-app>/vendor/posthog-rollup-plugin.tgz
+  cd <this-app> && rm -rf node_modules && pnpm install
+  ```
+
+- `~/Documents/repos/posthog/cli/target/debug/posthog-cli` - a CLI build that understands
+  `--no-release-bind` (branch `ab/feat/cli-release-injection`, posthog PR #75562). The path is
+  hardcoded in `rollup.config.js` via `cliBinaryPath`.
+
 ## Run
 
 ```bash
 cp .env.example .env   # then edit if you're not on the local-dev defaults
-npm install
-npm run throw          # build (uploads source maps) + run (sends 5 exceptions)
+pnpm install
+pnpm start             # clean + build (uploads source maps) + run (captures the exception)
+pnpm start:releaseless  # same, on the --no-release-bind path
 ```
 
-`npm run build` and `npm run start` are also available separately.
+## What to check after a releaseless build
+
+```bash
+tail -c 200 dist/index.js          # //# debugId=<uuid> emitted by rollup
+grep -o '"debugId":"[^"]*"' dist/index.js.map
+grep -o '_posthogChunkIds\[n\]="[^"]*"' dist/index.js   # must equal the debugId
+pnpm build:releaseless && tail -c 200 dist/index.js     # rebuild: id unchanged
+```
 
 ## Credentials
 
