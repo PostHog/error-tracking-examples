@@ -1,5 +1,5 @@
 import type { PostHog } from 'posthog-node'
 
-export function threeOriginal(posthog: PostHog) {
+export function threeAsdf(posthog: PostHog) {
   posthog.captureException(new Error('boom'), 'user')
 }

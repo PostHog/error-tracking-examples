@@ -1,6 +1,6 @@
 import type { PostHog } from 'posthog-node'
-import { threeOriginal } from './three'
+import { threeAsdf } from './three'
 
 export function two(posthog: PostHog) {
-  threeOriginal(posthog)
+  threeAsdf(posthog)
 }
