@@ -7,7 +7,7 @@
     "build": "esbuild src/*.ts --outdir=dist --platform=node --format=cjs --minify --sourcemap",
     "clean": "rm -rf dist",
     "process": "posthog-cli --dotenv-file .env sourcemap process --directory ./dist",
-    "process:releaseless": "/Users/ablaszkiewicz/Documents/repos/posthog/cli/target/debug/posthog-cli --dotenv-file .env sourcemap process --directory ./dist --no-release-bind --force",
+    "process:releaseless": "/Users/ablaszkiewicz/Documents/repos/posthog/cli/target/debug/posthog-cli --dotenv-file .env sourcemap process --directory ./dist --no-release-bind",
     "run:app": "node --env-file=.env dist/index.js",
     "start": "pnpm clean && pnpm build && pnpm process && pnpm run:app",
     "start:releaseless": "pnpm clean && pnpm build && pnpm process:releaseless && pnpm run:app"
