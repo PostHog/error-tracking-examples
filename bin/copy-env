@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+# Validate the credentials in the root .env against the local PostHog instance
+# (repairing them where possible), then sync the root .env into every child
+# project (any top-level dir with a package.json — ios-raw reads no env vars).
+# Run automatically by the env-setup proc in mprocs.yaml; safe to run by hand.
+#
+# Checks (skipped with a warning when the instance is down):
+#   - POSTHOG_CLI_TOKEN / POSTHOG_API_KEY (personal API key): verified via
+#     GET /api/users/@me. 401 means the key is dead; then we log in as the
+#     seeded dev user (passwordless POST /api/login/dev, password login as
+#     fallback), mint a new key scoped to error tracking via
+#     POST /api/personal_api_keys, and write it back to the root .env.
+#   - POSTHOG_KEY (project's public token): compared against the api_token
+#     reported by GET /api/projects/<id> and rewritten on mismatch.
+#
+# A missing root .env is bootstrapped from scratch for project/team 1: a
+# template is written and the checks above fill in the credentials. The sync
+# is skipped (with a non-zero exit) only when the .env still has empty
+# credentials afterwards — never clobber the child .envs with blanks.
+#
+# Any other check that cannot be repaired warns but does not block the sync —
+# same philosophy as posthog's bin/ensure-local-setup.
+set -uo pipefail
+
+cd "$(dirname "$0")/.."
+
+HOST='http://localhost:8010'
+ENV_FILE='.env'
+KEY_LABEL='error-tracking-examples'
+DEV_EMAIL='test@posthog.com' # seeded local-dev user
+DEV_PASSWORD='12345678'
+
+COOKIE_JAR=''
+CSRF=''
+trap '[[ -n "$COOKIE_JAR" ]] && rm -f "$COOKIE_JAR"' EXIT
+
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "no $ENV_FILE at repo root — creating one for project 1"
+  cat >"$ENV_FILE" <<EOF
+# Global env for all example apps. Edit values HERE only — bin/copy-env
+# (run automatically by the env-setup proc in mprocs.yaml) overwrites each
+# child project's .env with this file on every launch.
+
+# SDK capture at runtime (node-raw, node-rollup)
+POSTHOG_HOST=$HOST
+POSTHOG_KEY=
+
+# posthog-cli sourcemap upload (node-raw, web-raw)
+POSTHOG_CLI_HOST=$HOST
+POSTHOG_CLI_ENV_ID=1
+POSTHOG_CLI_TOKEN=
+
+# rollup plugin sourcemap upload (node-rollup) — same personal API key as above
+POSTHOG_API_KEY=
+POSTHOG_PROJECT_ID=1
+EOF
+fi
+
+env_get() { { grep -E "^$1=" "$ENV_FILE" || true; } | tail -1 | cut -d= -f2-; }
+
+env_set() {
+  if grep -qE "^$1=" "$ENV_FILE"; then
+    sed -i '' "s|^$1=.*|$1=$2|" "$ENV_FILE"
+  else
+    printf '%s=%s\n' "$1" "$2" >>"$ENV_FILE"
+  fi
+}
+
+# Prints the HTTP status (000 when unreachable), never fails.
+http_status() { curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$@" || true; }
+
+json_field() { python3 -c 'import json,sys; print(json.load(sys.stdin)[sys.argv[1]])' "$1" 2>/dev/null; }
+
+# Log in once and keep the session in a cookie jar. django's login() rotates
+# the CSRF token, so after a 2xx the jar also holds posthog_csrftoken — DRF's
+# SessionAuthentication requires it as a header on every write.
+ensure_session() {
+  [[ -n "$COOKIE_JAR" ]] && return 0
+  local jar status
+  jar=$(mktemp)
+  # /api/login/dev is the passwordless local login (DEBUG + ALLOW_DEV_LOGIN);
+  # it 404s when disabled, then plain password login is the fallback.
+  status=$(http_status -c "$jar" -H 'Content-Type: application/json' \
+    -d "{\"email\":\"$DEV_EMAIL\"}" "$HOST/api/login/dev")
+  if [[ $status != 2?? ]]; then
+    status=$(http_status -c "$jar" -H 'Content-Type: application/json' \
+      -d "{\"email\":\"$DEV_EMAIL\",\"password\":\"$DEV_PASSWORD\"}" "$HOST/api/login")
+  fi
+  if [[ $status != 2?? ]]; then
+    echo "warning: could not log in as $DEV_EMAIL (HTTP $status)" >&2
+    rm -f "$jar"
+    return 1
+  fi
+  COOKIE_JAR=$jar
+  CSRF=$(awk '$6 == "posthog_csrftoken" {v=$7} END {print v}' "$COOKIE_JAR")
+}
+
+session_curl() { curl -s --max-time 10 -b "$COOKIE_JAR" -H "X-CSRFToken: $CSRF" "$@"; }
+
+check_credentials() {
+  if [[ $(http_status "$HOST/_health") == 000 ]]; then
+    echo "warning: PostHog not reachable at $HOST — skipping credential checks" >&2
+    return
+  fi
+
+  local project_id token status resp canonical
+  project_id=$(env_get POSTHOG_CLI_ENV_ID)
+  project_id=${project_id:-1}
+
+  # --- personal API key (POSTHOG_CLI_TOKEN / POSTHOG_API_KEY) ---------------
+  token=$(env_get POSTHOG_CLI_TOKEN)
+  status=$(http_status -H "Authorization: Bearer $token" "$HOST/api/users/@me")
+  if [[ $status == 401 || -z $token ]]; then
+    echo 'personal API key is dead — minting a fresh one'
+    if ensure_session; then
+      # Drop previous keys with our label first, so reruns never hit the
+      # 10-keys-per-user cap.
+      session_curl "$HOST/api/personal_api_keys" | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+for item in (data.get("results", []) if isinstance(data, dict) else data):
+    if item.get("label") == sys.argv[1]:
+        print(item["id"])
+' "$KEY_LABEL" 2>/dev/null | while read -r id; do
+        session_curl -o /dev/null -X DELETE "$HOST/api/personal_api_keys/$id"
+      done
+
+      resp=$(session_curl -H 'Content-Type: application/json' \
+        -d "{\"label\":\"$KEY_LABEL\",\"scopes\":[\"error_tracking:read\",\"error_tracking:write\"],\"scoped_teams\":[],\"scoped_organizations\":[]}" \
+        "$HOST/api/personal_api_keys")
+      token=$(printf '%s' "$resp" | json_field value)
+      if [[ -n $token ]]; then
+        env_set POSTHOG_CLI_TOKEN "$token"
+        echo "stored new personal API key (error_tracking scope) in $ENV_FILE"
+      else
+        echo "warning: key creation failed: $resp" >&2
+        token=$(env_get POSTHOG_CLI_TOKEN)
+      fi
+    fi
+  else
+    # 403 just means the key is scoped tighter than user:read — still alive.
+    echo "personal API key OK (HTTP $status)"
+  fi
+  # POSTHOG_API_KEY (rollup plugin) is the same credential under another name.
+  [[ $(env_get POSTHOG_API_KEY) == "$token" ]] || env_set POSTHOG_API_KEY "$token"
+
+  # --- project public token (POSTHOG_KEY) -----------------------------------
+  # An error_tracking-scoped key cannot read /api/projects, so fall back to a
+  # logged-in session to fetch the canonical token.
+  canonical=$(curl -s --max-time 5 -H "Authorization: Bearer $token" \
+    "$HOST/api/projects/$project_id" | json_field api_token)
+  if [[ -z $canonical ]] && ensure_session; then
+    canonical=$(session_curl "$HOST/api/projects/$project_id" | json_field api_token)
+  fi
+  if [[ -z $canonical ]]; then
+    echo "warning: could not read project $project_id's token — POSTHOG_KEY left as is" >&2
+  elif [[ $canonical != $(env_get POSTHOG_KEY) ]]; then
+    env_set POSTHOG_KEY "$canonical"
+    echo "POSTHOG_KEY was stale — updated to project $project_id's token"
+  else
+    echo "POSTHOG_KEY OK (matches project $project_id)"
+  fi
+}
+
+check_credentials
+
+if [[ -z $(env_get POSTHOG_CLI_TOKEN) || -z $(env_get POSTHOG_KEY) ]]; then
+  echo "warning: $ENV_FILE still has empty credentials — not syncing to child projects" >&2
+  exit 1
+fi
+
+for dir in */; do
+  [[ -f "${dir}package.json" ]] || continue
+  cp "$ENV_FILE" "${dir}.env"
+  echo "synced .env -> ${dir}.env"
+done
+
+echo 'Env sync complete'

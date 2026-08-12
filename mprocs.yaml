@@ -1,39 +1,75 @@
-# mprocs config for the error-tracking examples.
+# mprocs (phrocs) config for the error-tracking examples.
 #
 #   mprocs --config mprocs.yaml
 #
-# All procs are off by default — start each one manually from the mprocs UI.
-# Each example has two procs: the normal release-binding flow, and the experimental
-# --release-mode=event flow (releaseless).
+# env-setup runs automatically on every launch: it bootstraps the root .env
+# (for project 1) if it is missing, validates the credentials
+# in the root .env against the local PostHog instance (minting a fresh
+# error_tracking-scoped personal API key if the stored one is dead, and
+# re-syncing POSTHOG_KEY with the project's token), then copies the root .env
+# into each child project (bin/copy-env). Edit env vars in the root .env only —
+# the per-project copies are overwritten on startup.
+#
+# All example procs are off by default — start each one manually from the
+# mprocs UI. Each example has two procs: the normal release-binding flow, and
+# the experimental --release-mode=event flow (releaseless).
 # (ios-raw is a Swift app with no package.json, so it has no proc here.)
 
 procs:
+  # Named to sort alphabetically before every example: phrocs selects the
+  # first proc in its (alphabetical) process list on startup, so this is the
+  # pane that opens by default.
+  env-setup:
+    shell: './bin/copy-env'
+    autostart: true
+    ready_pattern: 'Env sync complete'
+    groups:
+      layer: Setup
+
   node-raw:
     shell: 'pnpm install && pnpm start'
     cwd: node-raw
     autostart: false
+    groups:
+      layer: Examples
 
   node-raw (releaseless):
     shell: 'pnpm install && pnpm start:releaseless'
     cwd: node-raw
     autostart: false
+    groups:
+      layer: Examples
 
   node-rollup:
     shell: 'pnpm install && pnpm start'
     cwd: node-rollup
     autostart: false
+    groups:
+      layer: Examples
 
   node-rollup (releaseless):
     shell: 'pnpm install && pnpm start:releaseless'
     cwd: node-rollup
     autostart: false
+    groups:
+      layer: Examples
 
   web-raw:
     shell: 'pnpm install && pnpm start'
     cwd: web-raw
     autostart: false
+    groups:
+      layer: Examples
 
   web-raw (releaseless):
     shell: 'pnpm install && pnpm start:releaseless'
     cwd: web-raw
     autostart: false
+    groups:
+      layer: Examples
+
+# Grouping dimension the sidebar starts grouped by (press `g` to cycle/disable).
+default_group: layer
+
+group_order:
+  layer: [Setup, Examples]
