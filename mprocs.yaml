@@ -4,7 +4,7 @@
 #
 # All procs are off by default — start each one manually from the mprocs UI.
 # Each example has two procs: the normal release-binding flow, and the experimental
-# --no-release-bind flow (releaseless).
+# --release-mode=event flow (releaseless).
 # (ios-raw is a Swift app with no package.json, so it has no proc here.)
 
 procs:

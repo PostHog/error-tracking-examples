@@ -10,7 +10,7 @@ Two build paths share the app:
 | Command | What it exercises |
 | --- | --- |
 | `pnpm start` | The normal flow — the plugin generates chunk ids and the uploaded symbol sets are bound to a release. |
-| `pnpm start:releaseless` | The experimental flow — `--no-release-bind`, described below. |
+| `pnpm start:releaseless` | The experimental flow — `--release-mode=event`, described below. |
 
 ## How it works
 
@@ -21,12 +21,12 @@ Two build paths share the app:
 
 ### What `start:releaseless` adds
 
-`POSTHOG_NO_RELEASE_BIND=1` flips `sourcemaps.noReleaseBind` on, and then:
+`POSTHOG_RELEASE_MODE=event` flips `sourcemaps.noReleaseBind` on, and then:
 
 - The plugin sets rollup's `output.sourcemapDebugIds` (rollup >= 4.28), so rollup itself stamps an
   ECMA-426 debug id: a `//# debugId=<uuid>` comment in `dist/index.js` and a `debugId` field in
   `dist/index.js.map`. The id is a content hash - rebuilds of identical code keep the same id.
-- The plugin passes `--no-release-bind` to `posthog-cli sourcemap process`, which adopts that debug id as
+- The plugin passes `--release-mode=event` to `posthog-cli sourcemap process`, which adopts that debug id as
   the chunk id (instead of generating a random one), injects `_posthogChunkIds` + `_posthogReleaseId`
   snippets, and uploads the map without binding the symbol set to a release.
 
@@ -51,7 +51,7 @@ Both paths run local builds, because neither the plugin change nor the CLI chang
   ```
 
 - `~/Documents/repos/posthog/cli/target/debug/posthog-cli` - a CLI build that understands
-  `--no-release-bind` (branch `ab/feat/cli-release-injection`, posthog PR #75562). The path is
+  `--release-mode=event` (branch `ab/feat/cli-release-injection`, posthog PR #81171). The path is
   hardcoded in `rollup.config.js` via `cliBinaryPath`.
 
 ## Run
@@ -60,7 +60,7 @@ Both paths run local builds, because neither the plugin change nor the CLI chang
 cp .env.example .env   # then edit if you're not on the local-dev defaults
 pnpm install
 pnpm start             # clean + build (uploads source maps) + run (captures the exception)
-pnpm start:releaseless  # same, on the --no-release-bind path
+pnpm start:releaseless  # same, on the --release-mode=event path
 ```
 
 ## What to check after a releaseless build

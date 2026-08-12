@@ -2,12 +2,12 @@
   "name": "web-raw",
   "version": "0.1.0",
   "private": true,
-  "description": "Minimal browser app instrumented with PostHog error tracking, using posthog-cli to inject chunk IDs and upload source maps (no bundler plugin). `start` is the published CLI on the normal release-binding path; `start:releaseless` is a locally-built CLI with --no-release-bind. posthog-js is vendored because only an unreleased build reads the injected release id.",
+  "description": "Minimal browser app instrumented with PostHog error tracking, using posthog-cli to inject chunk IDs and upload source maps (no bundler plugin). `start` is the published CLI on the normal release-binding path; `start:releaseless` is a locally-built CLI with --release-mode=event. posthog-js is vendored because only an unreleased build reads the injected release id.",
   "scripts": {
     "build": "esbuild src/index.ts src/one.ts src/two.ts src/three.ts --bundle --splitting --format=esm --outdir=dist --sourcemap --minify",
     "clean": "rm -rf dist",
     "process": "posthog-cli --dotenv-file .env sourcemap process --directory ./dist",
-    "process:releaseless": "/Users/ablaszkiewicz/Documents/repos/posthog/cli/target/debug/posthog-cli --dotenv-file .env sourcemap process --directory ./dist --no-release-bind --force",
+    "process:releaseless": "/Users/ablaszkiewicz/Documents/repos/posthog/cli/target/debug/posthog-cli --dotenv-file .env sourcemap process --directory ./dist --release-mode=event --force",
     "start": "pnpm clean && pnpm build && pnpm process && node serve.mjs",
     "start:releaseless": "pnpm clean && pnpm build && pnpm process:releaseless && node serve.mjs"
   },
