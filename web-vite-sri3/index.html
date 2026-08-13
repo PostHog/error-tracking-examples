@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>web-vite-sri3</title>
+  </head>
+  <body>
+    <noscript>
+      If the page below stays empty with SRI errors in the console, the repro worked: the
+      PostHog plugin rewrote the .js files after vite-plugin-sri3 hashed them.
+    </noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

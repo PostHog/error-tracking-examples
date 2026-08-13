@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Minimal Node.js + Rollup app instrumented with PostHog error tracking and source map upload. `start` binds the uploaded symbol sets to a release the usual way; `start:releaseless` flips the plugin onto debug ids + --release-mode=event. The plugin and posthog-cli are local builds, since neither path has shipped.",
+  "description": "Minimal Node.js + Rollup app instrumented with PostHog error tracking and source map upload. `start` binds the uploaded symbol sets to a release the usual way; `start:releaseless` flips the plugin onto debug ids + --release-mode=event. The plugin is a local build, since it hasn't shipped; the CLI is the released posthog-cli.",
   "scripts": {
     "build": "rollup -c",
     "build:releaseless": "POSTHOG_RELEASE_MODE=event rollup -c",
@@ -16,6 +16,7 @@
     "posthog-node": "^5.47.0"
   },
   "devDependencies": {
+    "@posthog/cli": "latest",
     "@posthog/rollup-plugin": "file:./vendor/posthog-rollup-plugin.tgz",
     "@rollup/plugin-typescript": "^12.1.1",
     "@types/node": "^22.0.0",

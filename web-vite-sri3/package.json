@@ -1,0 +1,32 @@
+{
+  "name": "web-vite-sri3",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Vite + React app reproducing the @posthog/rollup-plugin x vite-plugin-sri3 incompatibility: sri3 computes integrity hashes from the in-memory chunks in generateBundle, the PostHog plugin mutates the emitted .js files on disk in writeBundle, so the served files no longer match the hashes and the browser blocks every script. Both plugins are the published npm builds, and the build fails the SRI check every time by design.",
+  "scripts": {
+    "build": "vite build",
+    "clean": "rm -rf dist",
+    "verify": "node verify-sri.mjs",
+    "serve": "vite preview --port 8081 --strictPort",
+    "start": "pnpm clean && pnpm build && pnpm verify && pnpm serve"
+  },
+  "dependencies": {
+    "posthog-js": "^1.268.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@posthog/rollup-plugin": "^1.4.7",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "dotenv": "^17.0.0",
+    "typescript": "^5.6.0",
+    "vite": "^7.0.0",
+    "vite-plugin-sri3": "^2.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@posthog/cli", "esbuild"]
+  }
+}

@@ -32,7 +32,9 @@ Two build paths share the app:
 
 ## Local bits this depends on
 
-Both paths run local builds, because neither the plugin change nor the CLI change has shipped.
+The CLI is the released `@posthog/cli` (a devDependency here — it has to be a direct one, because the
+plugin's own pinned `@posthog/cli` is older and would otherwise win the binary lookup). The plugin is
+still a local build, because the plugin change hasn't shipped.
 
 - `vendor/posthog-plugin-utils.tgz` + `vendor/posthog-rollup-plugin.tgz` - packed from the
   `ab/feat/rollup-debug-ids` branch of [posthog-js PR #4401](https://github.com/PostHog/posthog-js/pull/4401).
@@ -49,10 +51,6 @@ Both paths run local builds, because neither the plugin change nor the CLI chang
   cd ../rollup-plugin   && pnpm pack --out <this-app>/vendor/posthog-rollup-plugin.tgz
   cd <this-app> && rm -rf node_modules && pnpm install
   ```
-
-- `~/Documents/repos/posthog/cli/target/debug/posthog-cli` - a CLI build that understands
-  `--release-mode=event` (branch `ab/feat/cli-release-injection`, posthog PR #81171). The path is
-  hardcoded in `rollup.config.js` via `cliBinaryPath`.
 
 ## Run
 

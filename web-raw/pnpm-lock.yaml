@@ -14,7 +14,7 @@ importers:
     devDependencies:
       '@posthog/cli':
         specifier: latest
-        version: 0.10.0
+        version: 0.11.0
       esbuild:
         specifier: ^0.25.9
         version: 0.25.12
@@ -177,8 +177,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@posthog/cli@0.10.0':
-    resolution: {integrity: sha512-lPL7kFwGD66h0am8nSffydhRnDyskRWM9GkZOJBZIFShLRmAUdRnBNHrM4k8G5Qmqm3OC2xQMNS0YUKkQXaBQw==}
+  '@posthog/cli@0.11.0':
+    resolution: {integrity: sha512-FNrCrXAiq4JtQhqRCKqQPXQ37Ts0W609HCQZ5CXYCrg0jz3FTr5/kO3gl8utn6Oag1XoKUeubVc4oQgDmOunHA==}
     engines: {node: '>=14.14', npm: '>=6'}
     hasBin: true
 
@@ -274,7 +274,7 @@ snapshots:
   '@esbuild/win32-x64@0.25.12':
     optional: true
 
-  '@posthog/cli@0.10.0':
+  '@posthog/cli@0.11.0':
     dependencies:
       detect-libc: 2.1.2
 
