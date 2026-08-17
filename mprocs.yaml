@@ -11,10 +11,11 @@
 # the per-project copies are overwritten on startup.
 #
 # All example procs are off by default — start each one manually from the
-# mprocs UI. Each example has two procs: the normal release-binding flow, and
-# the experimental --release-mode=event flow (releaseless). web-vite-sri3
-# differs: it reproduces the @posthog/rollup-plugin x vite-plugin-sri3
-# incompatibility, so its single proc fails the SRI check every time by design.
+# mprocs UI. Each example has two procs, one per sidebar group: the normal
+# release-binding flow (Legacy) and the experimental --release-mode=event flow
+# (Releaseless). web-vite-sri3 differs: it reproduces the
+# @posthog/rollup-plugin x vite-plugin-sri3 incompatibility, so its single
+# (Legacy) proc fails the SRI check every time by design.
 # (ios-raw is a Swift app with no package.json, so it has no proc here.)
 
 procs:
@@ -33,52 +34,52 @@ procs:
     cwd: node-raw
     autostart: false
     groups:
-      layer: Examples
+      layer: Legacy
 
   node-raw (releaseless):
     shell: 'pnpm install && pnpm start:releaseless'
     cwd: node-raw
     autostart: false
     groups:
-      layer: Examples
+      layer: Releaseless
 
   node-rollup:
     shell: 'pnpm install && pnpm start'
     cwd: node-rollup
     autostart: false
     groups:
-      layer: Examples
+      layer: Legacy
 
   node-rollup (releaseless):
     shell: 'pnpm install && pnpm start:releaseless'
     cwd: node-rollup
     autostart: false
     groups:
-      layer: Examples
+      layer: Releaseless
 
   web-raw:
     shell: 'pnpm install && pnpm start'
     cwd: web-raw
     autostart: false
     groups:
-      layer: Examples
+      layer: Legacy
 
   web-raw (releaseless):
     shell: 'pnpm install && pnpm start:releaseless'
     cwd: web-raw
     autostart: false
     groups:
-      layer: Examples
+      layer: Releaseless
 
   web-vite-sri3:
     shell: 'pnpm install && pnpm start'
     cwd: web-vite-sri3
     autostart: false
     groups:
-      layer: Examples
+      layer: Legacy
 
 # Grouping dimension the sidebar starts grouped by (press `g` to cycle/disable).
 default_group: layer
 
 group_order:
-  layer: [Setup, Examples]
+  layer: [Setup, Legacy, Releaseless]

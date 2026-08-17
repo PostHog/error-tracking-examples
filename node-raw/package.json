@@ -2,12 +2,12 @@
   "name": "node-raw",
   "version": "0.1.0",
   "private": true,
-  "description": "Minimal Node.js app instrumented with PostHog error tracking, using posthog-cli to inject chunk IDs and upload source maps (no bundler plugin). `start` is the normal release-binding path; `start:releaseless` runs the CLI with --release-mode=event.",
+  "description": "Minimal Node.js app instrumented with PostHog error tracking, using posthog-cli to inject chunk IDs and upload source maps (no bundler plugin). `start` is the normal release-binding path; `start:releaseless` runs the CLI with --release-mode=event. The CLI is a local build from the posthog monorepo (cli/target/release), not the published @posthog/cli — point the process scripts back at `posthog-cli` to use the released one.",
   "scripts": {
     "build": "esbuild src/*.ts --outdir=dist --platform=node --format=cjs --minify --sourcemap",
     "clean": "rm -rf dist",
-    "process": "posthog-cli --dotenv-file .env sourcemap process --directory ./dist",
-    "process:releaseless": "posthog-cli --dotenv-file .env sourcemap process --directory ./dist --release-mode=event",
+    "process": "../../posthog/cli/target/release/posthog-cli --dotenv-file .env sourcemap process --directory ./dist",
+    "process:releaseless": "../../posthog/cli/target/release/posthog-cli --dotenv-file .env sourcemap process --directory ./dist --release-mode=event",
     "run:app": "node --env-file=.env dist/index.js",
     "start": "pnpm clean && pnpm build && pnpm process && pnpm run:app",
     "start:releaseless": "pnpm clean && pnpm build && pnpm process:releaseless && pnpm run:app"

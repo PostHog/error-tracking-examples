@@ -13,10 +13,11 @@ export default defineConfig({
     // Computes integrity hashes from the in-memory chunks in generateBundle
     // and stamps them onto the script/link tags in dist/index.html.
     sri(),
-    // Runs in writeBundle — after sri3 has hashed everything — and mutates the
-    // emitted .js files on disk (chunk id injection via posthog-cli), so the
-    // served files no longer match the hashes. Plugin order can't fix this:
-    // generateBundle always completes before writeBundle starts.
+    // Since 1.4.9 the chunk id is injected in renderChunk, i.e. into the
+    // in-memory chunk before sri3 hashes it in generateBundle — so the hashes
+    // match. Up to 1.4.7 the injection happened in writeBundle, mutating the
+    // .js files on disk after they were hashed; plugin order could not fix
+    // that, since generateBundle always completes before writeBundle starts.
     posthog({
       personalApiKey: process.env.POSTHOG_API_KEY,
       projectId: process.env.POSTHOG_PROJECT_ID,

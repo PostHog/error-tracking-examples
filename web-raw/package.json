@@ -7,7 +7,7 @@
     "build": "esbuild src/index.ts src/one.ts src/two.ts src/three.ts --bundle --splitting --format=esm --outdir=dist --sourcemap --minify",
     "clean": "rm -rf dist",
     "process": "posthog-cli --dotenv-file .env sourcemap process --directory ./dist",
-    "process:releaseless": "posthog-cli --dotenv-file .env sourcemap process --directory ./dist --release-mode=event --force",
+    "process:releaseless": "posthog-cli --dotenv-file .env sourcemap process --directory ./dist --release-mode=event",
     "start": "pnpm clean && pnpm build && pnpm process && node serve.mjs",
     "start:releaseless": "pnpm clean && pnpm build && pnpm process:releaseless && node serve.mjs"
   },
