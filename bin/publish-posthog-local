@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Publish the working copy of posthog-android to the local maven repo, so the
+# Android examples build against it instead of the released artifacts. The
+# gradle plugin has to come from here — `posthog.releaseMode` is unreleased —
+# and the SDK follows for free.
+#
+# Gradle skips the work when nothing changed, so this is cheap to rerun.
+set -euo pipefail
+
+POSTHOG_ANDROID_REPO=${POSTHOG_ANDROID_REPO:-"$(cd "$(dirname "$0")/../../posthog-android" && pwd)"}
+
+if [[ ! -x $POSTHOG_ANDROID_REPO/gradlew ]]; then
+  echo "error: no posthog-android checkout at $POSTHOG_ANDROID_REPO — set POSTHOG_ANDROID_REPO" >&2
+  exit 1
+fi
+
+echo "publishing posthog-android + gradle plugin to ~/.m2 from $POSTHOG_ANDROID_REPO"
+(
+  cd "$POSTHOG_ANDROID_REPO"
+  ./gradlew --quiet \
+    :posthog:publishToMavenLocal \
+    :posthog-android:publishToMavenLocal \
+    :posthog-android-gradle-plugin:publishToMavenLocal
+)
+echo 'published to ~/.m2/repository/com/posthog'

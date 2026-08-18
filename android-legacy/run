@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+# Build, install, launch. Pass a versionName to ship the same code again as a
+# second release: `./run 2.0.0`.
+exec ../bin/android-run "$(basename "$(pwd)")" "$@"

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Validate the credentials in the root .env against the local PostHog instance
 # (repairing them where possible), then sync the root .env into every child
-# project (any top-level dir with a package.json — ios-raw reads no env vars).
+# project (any top-level dir with a package.json or settings.gradle.kts —
+# ios-raw reads no env vars).
 # Run automatically by the env-setup proc in mprocs.yaml; safe to run by hand.
 #
 # Checks (skipped with a warning when the instance is down):
@@ -169,8 +170,11 @@ if [[ -z $(env_get POSTHOG_CLI_TOKEN) || -z $(env_get POSTHOG_KEY) ]]; then
   exit 1
 fi
 
+# Any top-level dir that is a project: node/web read the .env directly, the
+# android ones hand it to posthog-cli via the posthog.dotenvFile gradle property
+# and bake POSTHOG_KEY / POSTHOG_HOST into the APK.
 for dir in */; do
-  [[ -f "${dir}package.json" ]] || continue
+  [[ -f "${dir}package.json" || -f "${dir}settings.gradle.kts" ]] || continue
   cp "$ENV_FILE" "${dir}.env"
   echo "synced .env -> ${dir}.env"
 done

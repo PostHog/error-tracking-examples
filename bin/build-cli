@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Build the posthog-cli the Android examples use. They need `proguard upload
+# --release-mode`, which has not shipped in a published @posthog/cli yet, so they
+# point at cli/target/release/posthog-cli in the posthog monorepo checkout —
+# the same local build node-raw and web-raw already use.
+#
+# Rebuilds only when the binary is missing or older than the CLI sources.
+set -euo pipefail
+
+POSTHOG_REPO=${POSTHOG_REPO:-"$(cd "$(dirname "$0")/../../posthog" && pwd)"}
+BIN="$POSTHOG_REPO/cli/target/release/posthog-cli"
+
+if [[ ! -d $POSTHOG_REPO/cli ]]; then
+  echo "error: no posthog monorepo checkout at $POSTHOG_REPO — set POSTHOG_REPO" >&2
+  exit 1
+fi
+
+if [[ -x $BIN ]] && [[ -z $(find "$POSTHOG_REPO/cli/src" "$POSTHOG_REPO/cli/Cargo.toml" -newer "$BIN" -print -quit) ]]; then
+  echo "posthog-cli up to date ($("$BIN" --version))"
+  exit 0
+fi
+
+echo "building posthog-cli from $POSTHOG_REPO/cli (release, this takes a few minutes)"
+# CARGO_TARGET_DIR is pinned so the binary lands where the examples look for it;
+# the repo's flox env otherwise sends it to ~/.cargo/target.
+(cd "$POSTHOG_REPO/cli" && flox activate -- bash -c 'export CARGO_TARGET_DIR="$PWD/target"; cargo build --release')
+
+echo "built $("$BIN" --version)"

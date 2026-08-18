@@ -11,12 +11,21 @@
 # the per-project copies are overwritten on startup.
 #
 # All example procs are off by default — start each one manually from the
-# mprocs UI. Each example has two procs, one per sidebar group: the normal
+# mprocs UI. Most examples appear twice, one proc per sidebar group: the normal
 # release-binding flow (Legacy) and the experimental --release-mode=event flow
-# (Releaseless). web-vite-sri3 differs: it reproduces the
+# (Releaseless). The android ones are two separate projects instead of two procs
+# over one, so each gets its own applicationId, release and mapping. web-vite-sri3 differs: it reproduces the
 # @posthog/rollup-plugin x vite-plugin-sri3 incompatibility, so its single
 # (Legacy) proc fails the SRI check every time by design.
 # (ios-raw is a Swift app with no package.json, so it has no proc here.)
+#
+# The android-* procs build against local working copies — posthog-cli from the
+# posthog monorepo and posthog-android from its own repo, both published to
+# ~/.m2 on the way — because `posthog.releaseMode` and `proguard upload
+# --release-mode` are unreleased. Each one boots the emulator if none is
+# attached, installs its APK and streams its logs; tap "Capture exception" in
+# the app to send one. Set POSTHOG_SKIP_DEPS=1 to skip the local rebuilds once
+# they are current.
 
 procs:
   # Named to sort alphabetically before every example: phrocs selects the
@@ -28,6 +37,20 @@ procs:
     ready_pattern: 'Env sync complete'
     groups:
       layer: Setup
+
+  android-legacy:
+    shell: './run'
+    cwd: android-legacy
+    autostart: false
+    groups:
+      layer: Legacy
+
+  android-releaseless:
+    shell: './run'
+    cwd: android-releaseless
+    autostart: false
+    groups:
+      layer: Releaseless
 
   node-raw:
     shell: 'pnpm install && pnpm start'

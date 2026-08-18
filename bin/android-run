@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# Build, install and launch one of the Android examples, end to end:
+#
+#   bin/android-run android-legacy [versionName]
+#
+# Builds the local posthog-cli and publishes the local posthog-android to ~/.m2
+# (both unreleased, both required), boots the emulator if none is attached,
+# assembles the release variant — which is what uploads the proguard mapping —
+# installs it, launches it and streams its logs. Tap "Capture exception" in the
+# app to report one.
+#
+# Pass a versionName to ship the same code as a second release. That is the
+# case the two examples exist to contrast: the mapping is identical, so both
+# releases get the same content-addressed map id.
+#
+# POSTHOG_SKIP_DEPS=1 skips rebuilding posthog-cli and republishing
+# posthog-android to ~/.m2, which is most of the runtime once they are current.
+set -euo pipefail
+
+APP=${1:?usage: bin/android-run <example-dir> [versionName]}
+VERSION_NAME=${2:-}
+
+cd "$(dirname "$0")/.."
+ROOT=$PWD
+AVD=${ANDROID_AVD:-}
+ANDROID_HOME=${ANDROID_HOME:-$HOME/Library/Android/sdk}
+ADB="$ANDROID_HOME/platform-tools/adb"
+EMULATOR="$ANDROID_HOME/emulator/emulator"
+
+[[ -d $APP ]] || { echo "error: no example dir $APP" >&2; exit 1; }
+[[ -x $ADB ]] || { echo "error: no adb at $ADB — set ANDROID_HOME" >&2; exit 1; }
+
+# Both dependencies are local working copies, so they are rebuilt by default.
+# Set POSTHOG_SKIP_DEPS=1 to skip both when only the example itself changed —
+# that is the difference between a ~30s run and a ~5s one.
+if [[ ${POSTHOG_SKIP_DEPS:-0} == 1 ]]; then
+  echo 'POSTHOG_SKIP_DEPS=1 — using the posthog-cli and ~/.m2 artifacts already built'
+else
+  "$ROOT/bin/build-cli"
+  "$ROOT/bin/publish-posthog-local"
+fi
+
+# --- device ------------------------------------------------------------------
+booted_device() { "$ADB" devices | awk '$2 == "device" { print $1; exit }'; }
+
+if [[ -z $(booted_device) ]]; then
+  [[ -n $AVD ]] || AVD=$("$EMULATOR" -list-avds | head -1)
+  [[ -n $AVD ]] || { echo 'error: no AVD to boot — create one in Android Studio' >&2; exit 1; }
+  echo "no device attached, booting $AVD"
+  "$EMULATOR" -avd "$AVD" -no-snapshot-save -no-boot-anim >/dev/null 2>&1 &
+  "$ADB" wait-for-device
+  # wait-for-device returns as soon as adb can talk to it, long before the
+  # package manager can install anything.
+  until [[ $("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r') == 1 ]]; do sleep 2; done
+  echo "$AVD booted"
+fi
+DEVICE=$(booted_device)
+echo "using device $DEVICE"
+
+# --- build -------------------------------------------------------------------
+cd "$APP"
+# AGP finds the SDK through local.properties or ANDROID_HOME; the file is
+# gitignored, so write it for a fresh clone.
+[[ -f local.properties ]] || echo "sdk.dir=$ANDROID_HOME" >local.properties
+[[ -f .env ]] || { echo "error: no $APP/.env — run bin/copy-env first" >&2; exit 1; }
+
+# Kept non-empty: bash 3.2, which is what macOS ships, treats an empty array
+# expansion as unset under `set -u`.
+GRADLE_ARGS=(assembleRelease)
+[[ -n $VERSION_NAME ]] && GRADLE_ARGS=("-PappVersionName=$VERSION_NAME" assembleRelease)
+
+echo "assembling release${VERSION_NAME:+ (versionName $VERSION_NAME)} — this uploads the proguard mapping"
+./gradlew "${GRADLE_ARGS[@]}"
+
+APK=$(find build/outputs/apk/release -name '*.apk' | head -1)
+[[ -n $APK ]] || { echo 'error: no APK produced' >&2; exit 1; }
+
+# --- run ---------------------------------------------------------------------
+APP_ID=$(awk -F'"' '/applicationId = /{ print $2; exit }' build.gradle.kts)
+echo "installing $APK as $APP_ID"
+"$ADB" -s "$DEVICE" install -r "$APK" >/dev/null
+
+"$ADB" -s "$DEVICE" logcat -c
+"$ADB" -s "$DEVICE" shell monkey -p "$APP_ID" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+
+cat <<EOF
+
+$APP_ID is running as release $APP_ID@${VERSION_NAME:-1.0.0}.
+Tap "Capture exception" on the device to report a handled exception; its stack
+trace is obfuscated, so it only reads back once PostHog applies the mapping this
+build just uploaded.
+
+Streaming the app's logs — Ctrl-C to stop.
+EOF
+
+# PostHogExample is this app; PostHog is the SDK's own debug logging.
+exec "$ADB" -s "$DEVICE" logcat -s PostHogExample:I PostHog:D
