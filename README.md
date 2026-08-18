@@ -47,9 +47,16 @@ The second-release form is the case the two examples exist to contrast: the code
 releases, so in legacy mode both resolve to whichever release uploaded the
 mapping first, and in event mode each reports its own.
 
-An emulator is booted automatically when no device is attached. Override the AVD
-with `ANDROID_AVD`, and the repo locations with `POSTHOG_REPO` /
+An emulator is cold booted automatically when no device is attached. Override
+the AVD with `ANDROID_AVD`, and the repo locations with `POSTHOG_REPO` /
 `POSTHOG_ANDROID_REPO`.
+
+Cold, not resumed, on purpose: a snapshot resume restores the OS network-time
+clock from whenever the snapshot was taken, while the host only corrects the
+wall clock. The SDK timestamps events off the network clock, so events land
+weeks in the past and never appear in the dashboard's date range — which looks
+exactly like they were dropped. The apps also pin `dateProvider` to the device
+clock, so an emulator that was already up when you started does not hit this.
 
 ## iOS
 

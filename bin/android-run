@@ -46,8 +46,12 @@ booted_device() { "$ADB" devices | awk '$2 == "device" { print $1; exit }'; }
 if [[ -z $(booted_device) ]]; then
   [[ -n $AVD ]] || AVD=$("$EMULATOR" -list-avds | head -1)
   [[ -n $AVD ]] || { echo 'error: no AVD to boot — create one in Android Studio' >&2; exit 1; }
-  echo "no device attached, booting $AVD"
-  "$EMULATOR" -avd "$AVD" -no-snapshot-save -no-boot-anim >/dev/null 2>&1 &
+  echo "no device attached, cold booting $AVD"
+  # -no-snapshot, not -no-snapshot-save: resuming a snapshot also restores the
+  # OS network-time clock from whenever the snapshot was taken, and the SDK
+  # timestamps events off that clock. Events then land weeks in the past and
+  # never show up in the dashboard's default date range.
+  "$EMULATOR" -avd "$AVD" -no-snapshot -no-boot-anim >/dev/null 2>&1 &
   "$ADB" wait-for-device
   # wait-for-device returns as soon as adb can talk to it, long before the
   # package manager can install anything.
@@ -56,6 +60,17 @@ if [[ -z $(booted_device) ]]; then
 fi
 DEVICE=$(booted_device)
 echo "using device $DEVICE"
+
+# A device that was already up may have been resumed from a snapshot, in which
+# case its network clock is stale even though its wall clock is not. That is
+# invisible until events fail to appear in the dashboard, so say so here.
+DEVICE_EPOCH=$("$ADB" -s "$DEVICE" shell date +%s 2>/dev/null | tr -d '\r')
+if [[ $DEVICE_EPOCH =~ ^[0-9]+$ ]]; then
+  SKEW=$((  $(date +%s) - DEVICE_EPOCH ))
+  if (( SKEW > 300 || SKEW < -300 )); then
+    echo "warning: the device clock is ${SKEW}s off the host — cold boot it (adb emu kill) if events do not appear" >&2
+  fi
+fi
 
 # --- build -------------------------------------------------------------------
 cd "$APP"
