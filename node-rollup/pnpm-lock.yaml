@@ -6,18 +6,19 @@ settings:
 
 overrides:
   '@posthog/plugin-utils': file:./vendor/posthog-plugin-utils.tgz
+  '@posthog/core': file:./vendor/posthog-core.tgz
 
 importers:
 
   .:
     dependencies:
       posthog-node:
-        specifier: ^5.47.0
-        version: 5.47.11
+        specifier: file:./vendor/posthog-node.tgz
+        version: file:vendor/posthog-node.tgz
     devDependencies:
       '@posthog/cli':
         specifier: latest
-        version: 0.11.0
+        version: 0.11.1
       '@posthog/rollup-plugin':
         specifier: file:./vendor/posthog-rollup-plugin.tgz
         version: file:vendor/posthog-rollup-plugin.tgz(rollup@4.62.4)
@@ -42,14 +43,18 @@ importers:
 
 packages:
 
+  '@jridgewell/sourcemap-codec@1.5.5':
+    resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
+
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
     engines: {node: ^22.20 || ^24.12 || >=25}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
-  '@posthog/cli@0.11.0':
-    resolution: {integrity: sha512-FNrCrXAiq4JtQhqRCKqQPXQ37Ts0W609HCQZ5CXYCrg0jz3FTr5/kO3gl8utn6Oag1XoKUeubVc4oQgDmOunHA==}
+  '@posthog/cli@0.11.1':
+    resolution: {integrity: sha512-v1Ry3Ej6pltN5F1VahtrzpFdhgBAT6vwBRcC2A5P2k/CQjPVB1dWzYFA9yD1hjwpAw+cmWhJlyZm4QccX/DQnw==}
     engines: {node: '>=14.14', npm: '>=6'}
     hasBin: true
 
@@ -58,21 +63,22 @@ packages:
     engines: {node: '>=14.14', npm: '>=6'}
     hasBin: true
 
-  '@posthog/core@1.46.8':
-    resolution: {integrity: sha512-WQTSwlFhsWk09xngTimHiTyhFU8QZHFZEGSm+6brY3acwYdvTLcTxpIhgl/qOCgn/XoqlCFTZqU1ldWLxNntfA==}
+  '@posthog/core@file:vendor/posthog-core.tgz':
+    resolution: {integrity: sha512-VXti4GCFPMHWr1FRqCCaEIukMdaQj3qkfrBgtiOCVueVN3fF2TlvoJY6tNdqvcnS8/Xu0NKEmRthyKUsaxrj0w==, tarball: file:vendor/posthog-core.tgz}
+    version: 1.47.1
 
   '@posthog/plugin-utils@file:vendor/posthog-plugin-utils.tgz':
-    resolution: {integrity: sha512-7aeDQESxZElLg2Vs7ohwYadDpI7n/HCmtI1Kk+a8jBgfGKvoI9fpM62E5Ib6isO9bwRkgHA1n5rSoWLQMoTmzA==, tarball: file:vendor/posthog-plugin-utils.tgz}
+    resolution: {integrity: sha512-l1QAnibJQ93a3XCJeFCby6B8KWgpM6C6+uYDgXk6enz1YjVr1IdChMk0AArklSoWYaU9O/pTOz1U9Vbdmnxv0Q==, tarball: file:vendor/posthog-plugin-utils.tgz}
     version: 1.1.2
 
   '@posthog/rollup-plugin@file:vendor/posthog-rollup-plugin.tgz':
-    resolution: {integrity: sha512-YJCG9b/lBpPwEc31vXwzmFfMGPnT+8ssQrqrjEvEasbRyF6PvSU/j1br9BEQlOt5msppZYJ8tyJoYP9qFJJrAA==, tarball: file:vendor/posthog-rollup-plugin.tgz}
+    resolution: {integrity: sha512-FX7IpmigaM6TqU4vMu7Oz+DP6wGD02OaaPmJGrGx+9tZk5xQOwublgFUuMF3jg/R2WdlUijkuCDBMzs4Pg6TDg==, tarball: file:vendor/posthog-rollup-plugin.tgz}
     version: 1.4.7
     peerDependencies:
       rollup: '>= 4.0.0'
 
-  '@posthog/types@1.401.1':
-    resolution: {integrity: sha512-gVYXePy7cuK2ekdygeaaSNMtBlzqtYf7ULderrBam9M3X4of0ocWMPX5vRo/hdG4ONZgtfAuXrDjYhZRiR8dSA==}
+  '@posthog/types@1.404.1':
+    resolution: {integrity: sha512-i2Gei6ARfOSBeTN4s2yUP1p97s2UNI+1NWmtLjhnR/V6t3RFOfI1sBWKcJNWHjtoOCCWoAFU+PNPY6SgT2VtEQ==}
 
   '@rollup/plugin-typescript@12.3.0':
     resolution: {integrity: sha512-7DP0/p7y3t67+NabT9f8oTBFE6gGkto4SA6Np2oudYmZE/m1dt8RB0SjL1msMxFpLo631qjRCcBlAbq1ml/Big==}
@@ -130,66 +136,79 @@ packages:
     resolution: {integrity: sha512-81wiiX3v7aqy+T+bT61TJ78yJjRquqFFTTbAPt08imfQQzkPIW8t6aJbkTagtCCrXMNc9D66+geqlK7ydLPNqA==}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-arm-musleabihf@4.62.4':
     resolution: {integrity: sha512-9kmDIvNZqdoHOBZgNtpTBeLWYO/LVipM3H/j62P8848/l/VPEQL6N3uxU9pvP1oZAsXyC2MEnFP3ovRjo7WYNQ==}
     cpu: [arm]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-arm64-gnu@4.62.4':
     resolution: {integrity: sha512-CcnXHWnXg69g+DX5VWL3FHts3qMRN2uVEHX+BZvGLdd07/gXkn3ePjYtO1LDJvxkGKVHMclKBRa1QUTH+6toYQ==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-arm64-musl@4.62.4':
     resolution: {integrity: sha512-iFOibiHnTRuhrWLlRsOQFdZJJIa7S8OwkneJr4ocALP16u5yk6lWLINFwhHaEqBFMsKDUZofLkGos7+CPzGB3g==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-loong64-gnu@4.62.4':
     resolution: {integrity: sha512-XnWYMI7euHlb5a871xPja+Gm7DRCFU+FGRrtS2sMq9N8FvqtpagUy6gD4YOemC5MRk9xbh8+jYMEJbigFQwsgA==}
     cpu: [loong64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-loong64-musl@4.62.4':
     resolution: {integrity: sha512-qGDAlO0U8xedCcsdRm9oaoQY8DAx/QT7uIxJWhCdx0ceIWX783UC9QSYkdpzAe29wNiVfp24+bZdQmn49o45SQ==}
     cpu: [loong64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-ppc64-gnu@4.62.4':
     resolution: {integrity: sha512-ru4H6ezD7ysA5EiEK6qkkaEb4modH8CTej6kUy/gQi20u3kB3G7Zn8snXXkeJSCOFKG/rbPPtM/+9Wgas1961w==}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-ppc64-musl@4.62.4':
     resolution: {integrity: sha512-2W4MO5WQVJnbJaZdvDb9rhBDuFU1nKIepPFpJUBsTh2k1YY2g+ODViaWuyOAjQ5cOP7NvrvLzt3wvHOoiAvc7w==}
     cpu: [ppc64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-riscv64-gnu@4.62.4':
     resolution: {integrity: sha512-+fxjfuoAmVMCYV5QyjoIpu0cp5DOiOTeqYFk1AVaxGr+/ravWLX89XfQmptsoWcaVy/TGf2hexzbUOrCQIL1CQ==}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-riscv64-musl@4.62.4':
     resolution: {integrity: sha512-jTn8JfHGL4djjFxPuM06LmNUJDsst2jeVlsd9OmIH6zc5sC9K6rIuO4YajXatLUpBmBKl6b35ro1QZocLi+tcA==}
     cpu: [riscv64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-s390x-gnu@4.62.4':
     resolution: {integrity: sha512-oCJCJL4pXsoDcP2QZ+JVlPTIRc6266zsIaeJJsWImmF7HO0W8nb6HuSgZlMWxJwaPf8ehbSw8yo0EUw925hKsA==}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-x64-gnu@4.62.4':
     resolution: {integrity: sha512-W69hukhZ3KKNRCaMIEzKvcFye42hh0FE1+YoYaf5+Ikacuftoco6yO/xouz0hc5d5W/s3yBro5jRiuEE/Q5vUw==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-x64-musl@4.62.4':
     resolution: {integrity: sha512-qiXbGG2jkjXhzXpsFZSR2Xpb8DN/UaxYsbb/STbuR/6fpaDgRmmaq1B/LmtF2wQFOFOSsK2jdE0RZ3a0zHn4QA==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-openbsd-x64@4.62.4':
     resolution: {integrity: sha512-nWeM//hxv8mIo6jD7Hu4o48DVmV9pbV6gsKaWU+4NFyqHoPKwrkRiZGLKUhOBk8qNmDmpwFtPKg80Bo/Tn4xiQ==}
@@ -265,6 +284,9 @@ packages:
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
+  magic-string@0.30.21:
+    resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
+
   path-key@3.1.1:
     resolution: {integrity: sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q==}
     engines: {node: '>=8'}
@@ -276,8 +298,9 @@ packages:
     resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
     engines: {node: '>=12'}
 
-  posthog-node@5.47.11:
-    resolution: {integrity: sha512-6p6hc3JynK3Nt5Xm89olcAsZ3Ol+EtFj7mIApL7R4tptBxXalVjRQSbPtVxRl33H1QeDHgQof1TxKgHhefo4lA==}
+  posthog-node@file:vendor/posthog-node.tgz:
+    resolution: {integrity: sha512-JkZlHbNCLkWXXsnkCwKEfRqfzyKeOxbJ4d//FUq9N29P3PwPGEDMvesf88cjiJXRmnwxZOlxGln2nK7EZ0Au3g==, tarball: file:vendor/posthog-node.tgz}
+    version: 5.48.2
     engines: {node: ^20.20.0 || >=22.22.0}
     peerDependencies:
       rxjs: ^7.0.0
@@ -325,10 +348,12 @@ packages:
 
 snapshots:
 
+  '@jridgewell/sourcemap-codec@1.5.5': {}
+
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
 
-  '@posthog/cli@0.11.0':
+  '@posthog/cli@0.11.1':
     dependencies:
       detect-libc: 2.1.2
 
@@ -336,9 +361,9 @@ snapshots:
     dependencies:
       detect-libc: 2.1.2
 
-  '@posthog/core@1.46.8':
+  '@posthog/core@file:vendor/posthog-core.tgz':
     dependencies:
-      '@posthog/types': 1.401.1
+      '@posthog/types': 1.404.1
 
   '@posthog/plugin-utils@file:vendor/posthog-plugin-utils.tgz':
     dependencies:
@@ -348,9 +373,10 @@ snapshots:
     dependencies:
       '@posthog/cli': 0.7.34
       '@posthog/plugin-utils': file:vendor/posthog-plugin-utils.tgz
+      magic-string: 0.30.21
       rollup: 4.62.4
 
-  '@posthog/types@1.401.1': {}
+  '@posthog/types@1.404.1': {}
 
   '@rollup/plugin-typescript@12.3.0(rollup@4.62.4)(tslib@2.8.1)(typescript@5.9.3)':
     dependencies:
@@ -479,15 +505,19 @@ snapshots:
 
   isexe@2.0.0: {}
 
+  magic-string@0.30.21:
+    dependencies:
+      '@jridgewell/sourcemap-codec': 1.5.5
+
   path-key@3.1.1: {}
 
   path-parse@1.0.7: {}
 
   picomatch@4.0.5: {}
 
-  posthog-node@5.47.11:
+  posthog-node@file:vendor/posthog-node.tgz:
     dependencies:
-      '@posthog/core': 1.46.8
+      '@posthog/core': file:vendor/posthog-core.tgz
 
   resolve@1.22.12:
     dependencies:
