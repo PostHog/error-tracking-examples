@@ -11,13 +11,13 @@ class Checkout(private val gateway: PaymentGateway = PaymentGateway()) {
 
 class PaymentGateway(private val amounts: AmountValidator = AmountValidator()) {
     fun charge(order: Order): String {
-        amounts.require(order)
+        amounts.require1(order)
         return "ch_${order.id}"
     }
 }
 
 class AmountValidator {
-    fun require(order: Order) {
+    fun require1(order: Order) {
         // The failure the demo exists to report.
         check(order.amountCents > 0) {
             "Cannot charge order ${order.id}: amount is ${order.amountCents} cents"

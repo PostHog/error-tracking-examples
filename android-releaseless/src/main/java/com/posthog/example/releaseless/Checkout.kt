@@ -8,16 +8,22 @@ package com.posthog.example.releaseless
 class Checkout(private val gateway: PaymentGateway = PaymentGateway()) {
     fun submit(order: Order): Receipt = Receipt(order.id, gateway.charge(order))
 }
-
+// asd
 class PaymentGateway(private val amounts: AmountValidator = AmountValidator()) {
     fun charge(order: Order): String {
-        amounts.require(order)
+        amounts.require3(order)
         return "ch_${order.id}"
     }
 }
 
 class AmountValidator {
-    fun require(order: Order) {
+    // A proxy that exists only to put one more frame between the checkout and
+    // the failure, so this example's stack trace — and the mapping that decodes
+    // it — is visibly not android-legacy's. It survives R8 because the release
+    // build runs with -dontoptimize, so nothing inlines it back out.
+    fun require3(order: Order) = enforcePositiveAmount(order)
+
+    private fun enforcePositiveAmount(order: Order) {
         // The failure the demo exists to report.
         check(order.amountCents > 0) {
             "Cannot charge order ${order.id}: amount is ${order.amountCents} cents"
