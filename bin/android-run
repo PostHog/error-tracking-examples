@@ -93,10 +93,16 @@ cd "$APP"
 [[ -f local.properties ]] || echo "sdk.dir=$ANDROID_HOME" >local.properties
 [[ -f .env ]] || { echo "error: no $APP/.env — run bin/copy-env first" >&2; exit 1; }
 
+# The upload task is finalizedBy assemble and declares its inputs, so a rebuild
+# of unchanged code skips it and prints nothing. --rerun (which applies to the
+# task it follows) forces it every time: watching what the CLI does is the point
+# of these examples, and "1 skipped (1 already present)" is as interesting a
+# result as an upload.
+#
 # Kept non-empty: bash 3.2, which is what macOS ships, treats an empty array
 # expansion as unset under `set -u`.
-GRADLE_ARGS=(assembleRelease)
-[[ -n $VERSION_NAME ]] && GRADLE_ARGS=("-PappVersionName=$VERSION_NAME" assembleRelease)
+GRADLE_ARGS=(assembleRelease uploadPostHogProguardMappingsRelease --rerun)
+[[ -n $VERSION_NAME ]] && GRADLE_ARGS=("-PappVersionName=$VERSION_NAME" "${GRADLE_ARGS[@]}")
 
 echo "assembling release${VERSION_NAME:+ (versionName $VERSION_NAME)} — this uploads the proguard mapping"
 ./gradlew "${GRADLE_ARGS[@]}"

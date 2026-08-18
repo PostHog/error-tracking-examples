@@ -33,7 +33,12 @@ release yet:
 - **posthog-android** and its gradle plugin, published to `~/.m2`
   (`bin/publish-posthog-local`)
 
-Both are rebuilt on every run. Once they are current that is most of the
+The mapping upload is forced on every run (`--rerun`). Gradle would otherwise
+skip it silently when the mapping has not changed, and `1 skipped (1 already
+present)` is exactly the result worth seeing: it means two builds produced the
+same content-addressed map id.
+
+Both dependencies are rebuilt on every run. Once they are current that is most of the
 runtime, so `POSTHOG_SKIP_DEPS=1` skips them.
 
 ```bash
