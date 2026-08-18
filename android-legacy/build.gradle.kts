@@ -17,11 +17,13 @@ val env =
         if (file.exists()) file.inputStream().use { load(it) }
     }
 
-// The emulator reaches the host's PostHog through 10.0.2.2, never localhost.
-val posthogHost =
-    (env.getProperty("POSTHOG_HOST") ?: "http://localhost:8010")
-        .replace("localhost", "10.0.2.2")
-        .replace("127.0.0.1", "10.0.2.2")
+// Used verbatim, localhost URLs included: bin/android-run sets up an `adb
+// reverse` so the device's own localhost reaches this machine. Going through the
+// emulator's 10.0.2.2 alias would reach it too, but would put 10.0.2.2 in the
+// Host header, and PostHog's local Caddy only serves its `localhost` site — it
+// answers anything else with an empty 200 that the SDK reports as a successful
+// send while nothing is ever ingested.
+val posthogHost = env.getProperty("POSTHOG_HOST") ?: "http://localhost:8010"
 val posthogKey = env.getProperty("POSTHOG_KEY").orEmpty()
 
 android {

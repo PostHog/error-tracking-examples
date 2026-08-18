@@ -61,6 +61,20 @@ fi
 DEVICE=$(booted_device)
 echo "using device $DEVICE"
 
+# The app uses the same POSTHOG_HOST as every other example, localhost included,
+# and adb forwards that port from the device back to this machine. Not the
+# emulator's 10.0.2.2 alias: that reaches the host too, but puts 10.0.2.2 in the
+# Host header, and PostHog's local Caddy serves only its `localhost` site. It
+# answers anything else with an empty 200, which the SDK reports as a successful
+# send while nothing is ever ingested — silent, and the reason this is wired up
+# here rather than left to whoever debugs it next.
+if [[ -f $ROOT/.env ]] && grep -qE '^POSTHOG_HOST=https?://(localhost|127\.0\.0\.1)' "$ROOT/.env"; then
+  PORT=$(sed -n 's|^POSTHOG_HOST=https\{0,1\}://[^:/]*:\([0-9]\{1,\}\).*|\1|p' "$ROOT/.env" | head -1)
+  PORT=${PORT:-80}
+  "$ADB" -s "$DEVICE" reverse "tcp:$PORT" "tcp:$PORT" >/dev/null
+  echo "adb reverse tcp:$PORT -> localhost:$PORT on this machine"
+fi
+
 # A device that was already up may have been resumed from a snapshot, in which
 # case its network clock is stale even though its wall clock is not. That is
 # invisible until events fail to appear in the dashboard, so say so here.

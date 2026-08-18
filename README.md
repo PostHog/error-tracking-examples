@@ -47,6 +47,12 @@ The second-release form is the case the two examples exist to contrast: the code
 releases, so in legacy mode both resolve to whichever release uploaded the
 mapping first, and in event mode each reports its own.
 
+The app is pointed at `POSTHOG_HOST` verbatim and reaches it over an
+`adb reverse` on that port, not over the emulator's `10.0.2.2` alias. That alias
+reaches the host fine, but puts `10.0.2.2` in the `Host` header, and PostHog's
+local Caddy serves only its `localhost` site — everything else gets an empty
+`200` that the SDK reports as a successful send while nothing is ingested.
+
 An emulator is cold booted automatically when no device is attached. Override
 the AVD with `ANDROID_AVD`, and the repo locations with `POSTHOG_REPO` /
 `POSTHOG_ANDROID_REPO`.
