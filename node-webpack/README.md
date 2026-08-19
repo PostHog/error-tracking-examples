@@ -2,8 +2,11 @@
 
 Minimal Node.js + webpack app instrumented with PostHog error tracking and source map upload.
 
-On run it throws through a 3-deep call chain (`one -> two -> threeRenamed`) and captures the exception,
-so the minified stack only resolves back to `src/*.ts` if the uploaded map is found via the chunk id.
+On run it throws through a 3-deep call chain (`one -> two -> threeRenamedAsd`) and captures the
+exception, so the minified stack only resolves back to `src/*.ts` if the uploaded maps are found via
+their chunk ids. The throwing module is dynamically imported, so the build emits two chunks
+(`dist/index.js` and `dist/three.js`), each with its own debug id and symbol set, and one stack
+resolves across both.
 
 Two build paths share the app:
 
@@ -68,12 +71,12 @@ pnpm start:releaseless  # same, on the --release-mode=event path
 ## What to check after a releaseless build
 
 ```bash
-grep -o '//# debugId=[a-f0-9-]*' dist/index.js          # stamped by webpack at compile time
-grep -o '"debugId":"[^"]*"' dist/index.js.map
-grep -o '_posthogChunkIds\[n\]="[^"]*"' dist/index.js    # must equal the debugId
-grep -o '//# chunkId=[a-f0-9-]*' dist/index.js           # must equal the debugId
-grep -o '_posthogReleaseId||"[^"]*"' dist/index.js       # the resolved release id
-pnpm build:releaseless && grep -o '//# debugId=[a-f0-9-]*' dist/index.js   # rebuild: id unchanged
+grep -o '//# debugId=[a-f0-9-]*' dist/*.js               # stamped by webpack, one id per chunk
+grep -o '"debugId":"[^"]*"' dist/*.js.map
+grep -o '_posthogChunkIds\[n\]="[^"]*"' dist/*.js        # must equal each chunk's debugId
+grep -o '//# chunkId=[a-f0-9-]*' dist/*.js               # must equal each chunk's debugId
+grep -o '_posthogReleaseId||"[^"]*"' dist/*.js           # the resolved release id, same in every chunk
+pnpm build:releaseless && grep -o '//# debugId=[a-f0-9-]*' dist/*.js   # rebuild: ids unchanged
 ```
 
 ## Credentials

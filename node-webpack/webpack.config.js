@@ -17,6 +17,9 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: 'index.js',
+    // The dynamically imported module in src/two.ts lands here as its own chunk, so the
+    // build emits multiple files and every chunk gets its own debug id and symbol set.
+    chunkFilename: '[name].js',
     clean: true,
   },
   resolve: { extensions: ['.ts', '.js'] },

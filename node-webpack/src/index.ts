@@ -13,7 +13,7 @@ async function main() {
 
   console.log('starting')
 
-  one(posthog)
+  await one(posthog)
 
   await posthog.shutdown()
 
