@@ -37,8 +37,11 @@ android {
         applicationId = "com.posthog.example.releaseless"
         minSdk = 24
         targetSdk = 36
-        versionCode = (findProperty("appVersionCode") as String? ?: "1").toInt()
-        versionName = findProperty("appVersionName") as String? ?: "1.0.0"
+        // Deliberately ahead of android-legacy's 1.0.0: releases are keyed on
+        // (applicationId, versionName+versionCode), so this builds as a different
+        // release. bin/android-run's optional versionName argument overrides it.
+        versionCode = (findProperty("appVersionCode") as String? ?: "2").toInt()
+        versionName = findProperty("appVersionName") as String? ?: "1.1.0"
 
         buildConfigField("String", "POSTHOG_HOST", "\"$posthogHost\"")
         buildConfigField("String", "POSTHOG_KEY", "\"$posthogKey\"")

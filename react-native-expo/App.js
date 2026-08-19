@@ -6,7 +6,7 @@ import PostHog from 'posthog-react-native'
 // public: update POSTHOG_KEY to your local project token (POSTHOG_KEY in the repo
 // root .env) before running the app on a device.
 const POSTHOG_HOST = 'http://localhost:8010'
-const POSTHOG_KEY = 'phc_kD64gg5WuNKZnrtXAxVrMiDdL49jeTfCxTsnvzM2DugB'
+const POSTHOG_KEY = 'e2e_token_1239'
 
 export default function App() {
   const posthog = useMemo(
