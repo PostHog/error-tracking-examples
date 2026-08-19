@@ -1,0 +1,48 @@
+# react-native-expo
+
+Minimal Expo app instrumented with PostHog error tracking, following the simplest path from the
+[React Native source map docs](https://posthog.com/docs/error-tracking/upload-source-maps/react-native):
+the metro config wraps `getPostHogExpoConfig`, and the manual (EAS-update style) upload command
+sends the exported hermes maps to a local PostHog with the locally built posthog-cli.
+
+```bash
+pnpm install
+pnpm sourcemaps    # clean + expo export --source-maps --platform ios + posthog-cli hermes upload
+```
+
+## What it exercises
+
+- Expo 50+ stamps its own debug id during export: the `.hbc.map` carries a `debugId` field and
+  nothing else identifying the chunk.
+- `getPostHogExpoConfig` injects the `_posthogChunkIds` module into the bundle using that same id.
+- `posthog-cli hermes upload --directory dist` must adopt the map's `debugId` as the chunk id, so
+  the uploaded symbol set's ref equals Expo's debug id. This is the path that regressed once when
+  the CLI's `debugId` alias was split into an explicit field, so this example is the regression
+  check for it.
+
+## What to check after `pnpm sourcemaps`
+
+- The upload logs `Found 1 maps to upload` and `1 chunk(s) uploaded`.
+- The symbol set ref equals the map's debug id:
+
+```bash
+node -e "console.log(JSON.parse(require('fs').readFileSync(require('glob').sync('dist/_expo/static/js/ios/*.hbc.map')[0])).debugId)" 2>/dev/null \
+  || python3 -c "import json,glob; print(json.load(open(glob.glob('dist/_expo/static/js/ios/*.hbc.map')[0]))['debugId'])"
+```
+
+Compare against the ref shown under error tracking symbol sets in the PostHog UI (or
+`GET /api/environments/1/error_tracking/symbol_sets/?search=<id>`).
+
+## Credentials
+
+`bin/copy-env` syncs the repo root `.env` into this folder; `pnpm upload` reads
+`POSTHOG_CLI_TOKEN` / `POSTHOG_CLI_ENV_ID` / `POSTHOG_CLI_HOST` from the environment the same way
+the other examples do. The runtime key in `App.js` is inlined (React Native cannot read `.env`) —
+update it from the root `.env` before running the app.
+
+## Running the app (full e2e)
+
+The proc only covers the build-and-upload half, which is the part the CLI touches. To capture an
+exception on a device you need a native build (`npx expo run:ios` or a dev client), then tap
+**Capture exception**. Expo Go serves a dev bundle without the injected ids, so symbolication is
+only meaningful against a release-style build.

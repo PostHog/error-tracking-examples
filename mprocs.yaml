@@ -94,6 +94,13 @@ procs:
     groups:
       layer: Releaseless
 
+  react-native-expo:
+    shell: 'pnpm install && pnpm sourcemaps'
+    cwd: react-native-expo
+    autostart: false
+    groups:
+      layer: Legacy
+
   web-raw:
     shell: 'pnpm install && pnpm start'
     cwd: web-raw
