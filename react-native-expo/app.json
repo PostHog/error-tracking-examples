@@ -13,6 +13,14 @@
     },
     "android": {
       "package": "com.posthog.example.rnexpo"
-    }
+    },
+    "plugins": [
+      [
+        "posthog-react-native/expo",
+        {
+          "dotenvFile": ".env"
+        }
+      ]
+    ]
   }
 }

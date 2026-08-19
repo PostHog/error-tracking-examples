@@ -12,7 +12,9 @@
     "start": "expo start --port 8083",
     "start:ios": "expo run:ios --port 8083",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild --platform ios --clean",
+    "start:ios:release": "expo run:ios --configuration Release --port 8083"
   },
   "dependencies": {
     "expo": "^54.0.0",
