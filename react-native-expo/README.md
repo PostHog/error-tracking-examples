@@ -46,7 +46,19 @@ The default proc only covers the build-and-upload half, which is the part the CL
 
 `pnpm start:ios` (or the `react-native-expo (ios app)` proc) prebuilds and launches a debug build
 on the iOS simulator. Tap **Capture exception** to see an event arrive - but the dev bundle has no
-injected ids, so it does not exercise symbolication.
+injected ids, so it does not exercise symbolication. Update `POSTHOG_KEY` in `App.js` to your local
+project token (root `.env`) first, or capture drops the events.
+
+Metro runs on port 8083 because 8081 is commonly taken (OrbStack). `expo run:ios --port` starts
+Metro there but does not bake the port into an already-prebuilt native project, so the app probes
+8081 and dies with "No script URL provided". Fix once per simulator, no rebuild needed:
+
+```bash
+xcrun simctl spawn booted defaults write com.posthog.example.rnexpo RCT_jsLocation "localhost:8083"
+```
+
+then relaunch the app. `ios/.xcode.env.local` also carries `RCT_METRO_PORT=8083` for future
+builds, but that file is generated - re-add the line after `expo prebuild --clean`.
 
 Full on-device symbolication needs a release build whose Xcode build phase does the upload (the
 `posthog-react-native/expo` plugin + prebuild flow from the docs) - the same treatment the android
