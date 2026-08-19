@@ -101,6 +101,16 @@ procs:
     groups:
       layer: Legacy
 
+  # Debug build on the iOS simulator: good for tapping "Capture exception" and seeing the
+  # event arrive, but the dev bundle has no injected ids, so it does not exercise
+  # symbolication. The headless proc above is the sourcemap-pipeline check.
+  react-native-expo (ios app):
+    shell: 'pnpm install && pnpm start:ios'
+    cwd: react-native-expo
+    autostart: false
+    groups:
+      layer: Legacy
+
   web-raw:
     shell: 'pnpm install && pnpm start'
     cwd: web-raw

@@ -4,6 +4,15 @@
     "slug": "react-native-expo",
     "version": "1.0.0",
     "jsEngine": "hermes",
-    "platforms": ["ios", "android"]
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.posthog.example.rnexpo"
+    },
+    "android": {
+      "package": "com.posthog.example.rnexpo"
+    }
   }
 }

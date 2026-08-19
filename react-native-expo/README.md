@@ -40,9 +40,14 @@ Compare against the ref shown under error tracking symbol sets in the PostHog UI
 the other examples do. The runtime key in `App.js` is inlined (React Native cannot read `.env`) —
 update it from the root `.env` before running the app.
 
-## Running the app (full e2e)
+## Running the app
 
-The proc only covers the build-and-upload half, which is the part the CLI touches. To capture an
-exception on a device you need a native build (`npx expo run:ios` or a dev client), then tap
-**Capture exception**. Expo Go serves a dev bundle without the injected ids, so symbolication is
-only meaningful against a release-style build.
+The default proc only covers the build-and-upload half, which is the part the CLI touches.
+
+`pnpm start:ios` (or the `react-native-expo (ios app)` proc) prebuilds and launches a debug build
+on the iOS simulator. Tap **Capture exception** to see an event arrive - but the dev bundle has no
+injected ids, so it does not exercise symbolication.
+
+Full on-device symbolication needs a release build whose Xcode build phase does the upload (the
+`posthog-react-native/expo` plugin + prebuild flow from the docs) - the same treatment the android
+examples got. Not wired here yet.
