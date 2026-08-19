@@ -1,0 +1,28 @@
+{
+  "name": "next-webpack",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal Next.js app instrumented with @posthog/nextjs-config. `start` builds with webpack (the plugin uploads source maps per compilation) and probes a server route that captures an exception; `start:releaseless` runs the same on --release-mode=event, where the CLI injects release ids and adopts native debug ids when Next's vendored webpack supports them.",
+  "scripts": {
+    "clean": "rm -rf .next",
+    "build": "next build",
+    "build:releaseless": "POSTHOG_RELEASE_MODE=event next build",
+    "probe": "node scripts/probe.mjs",
+    "start": "pnpm clean && pnpm build && pnpm probe",
+    "start:releaseless": "pnpm clean && pnpm build:releaseless && pnpm probe"
+  },
+  "dependencies": {
+    "@posthog/nextjs-config": "file:./vendor/posthog-nextjs-config.tgz",
+    "next": "^15.5.0",
+    "posthog-node": "file:./vendor/posthog-node.tgz",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@posthog/webpack-plugin": "file:./vendor/posthog-webpack-plugin.tgz",
+      "@posthog/plugin-utils": "file:./vendor/posthog-plugin-utils.tgz",
+      "@posthog/core": "file:./vendor/posthog-core.tgz"
+    }
+  }
+}

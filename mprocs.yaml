@@ -80,6 +80,20 @@ procs:
     groups:
       layer: Releaseless
 
+  next-webpack:
+    shell: 'pnpm install && pnpm start'
+    cwd: next-webpack
+    autostart: false
+    groups:
+      layer: Legacy
+
+  next-webpack (releaseless):
+    shell: 'pnpm install && pnpm start:releaseless'
+    cwd: next-webpack
+    autostart: false
+    groups:
+      layer: Releaseless
+
   node-webpack:
     shell: 'pnpm install && pnpm start'
     cwd: node-webpack
