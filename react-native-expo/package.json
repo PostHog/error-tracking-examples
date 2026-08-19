@@ -9,8 +9,10 @@
     "export": "expo export --source-maps --platform ios",
     "upload": "../../posthog/cli/target/debug/posthog-cli hermes upload --directory dist",
     "sourcemaps": "pnpm clean && pnpm export && pnpm upload",
-    "start": "expo start",
-    "start:ios": "expo run:ios"
+    "start": "expo start --port 8083",
+    "start:ios": "expo run:ios --port 8083",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "expo": "^54.0.0",
