@@ -1,0 +1,32 @@
+{
+  "name": "node-webpack",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal Node.js + webpack app instrumented with PostHog error tracking and source map upload. `start` binds the uploaded symbol sets to a release the usual way; `start:releaseless` flips the plugin onto --release-mode=event: webpack stamps native debug ids, and posthog-cli adopts them as chunk ids while injecting a release id into every chunk. The plugin and the SDK are local builds, since neither change has shipped, and so is the CLI (event mode needs `release resolve` and debug id adoption).",
+  "scripts": {
+    "build": "webpack --config webpack.config.js",
+    "build:releaseless": "POSTHOG_RELEASE_MODE=event webpack --config webpack.config.js",
+    "clean": "rm -rf dist",
+    "run:app": "node --env-file=.env dist/index.js",
+    "start": "pnpm clean && pnpm build && pnpm run:app",
+    "start:releaseless": "pnpm clean && pnpm build:releaseless && pnpm run:app"
+  },
+  "dependencies": {
+    "posthog-node": "file:./vendor/posthog-node.tgz"
+  },
+  "devDependencies": {
+    "@posthog/webpack-plugin": "file:./vendor/posthog-webpack-plugin.tgz",
+    "@types/node": "^22.0.0",
+    "dotenv": "^17.0.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.6.0",
+    "webpack": "^5.108.0",
+    "webpack-cli": "^6.0.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "@posthog/plugin-utils": "file:./vendor/posthog-plugin-utils.tgz",
+      "@posthog/core": "file:./vendor/posthog-core.tgz"
+    }
+  }
+}
