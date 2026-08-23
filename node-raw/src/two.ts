@@ -1,6 +1,6 @@
 import type { PostHog } from 'posthog-node'
-import { threeAdiognrg } from './three'
+import { threeAdiognrgasdahjienfklafghigkallapppp } from './three'
 
 export function two(posthog: PostHog) {
-  threeAdiognrg(posthog)
+  threeAdiognrgasdahjienfklafghigkallapppp(posthog)
 }

@@ -3,7 +3,8 @@
 Minimal Expo app instrumented with PostHog error tracking, following the simplest path from the
 [React Native source map docs](https://posthog.com/docs/error-tracking/upload-source-maps/react-native):
 the metro config wraps `getPostHogExpoConfig`, and the manual (EAS-update style) upload command
-sends the exported hermes maps to a local PostHog with the locally built posthog-cli.
+sends the exported hermes maps to a local PostHog with the published `@posthog/cli` (a devDependency,
+so `pnpm upload` picks it up from `node_modules/.bin`).
 
 ```bash
 pnpm install

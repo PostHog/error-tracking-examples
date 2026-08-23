@@ -15,10 +15,13 @@
     "posthog-js": "file:./vendor/posthog-js"
   },
   "devDependencies": {
-    "@posthog/cli": "latest",
+    "@posthog/cli": "^0.13.3",
     "esbuild": "^0.25.9"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@posthog/cli", "esbuild"]
+    "onlyBuiltDependencies": [
+      "@posthog/cli",
+      "esbuild"
+    ]
   }
 }

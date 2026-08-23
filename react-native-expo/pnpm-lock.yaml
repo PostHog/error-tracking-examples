@@ -32,6 +32,10 @@ importers:
       react-native:
         specifier: 0.81.4
         version: 0.81.4(@babel/core@7.29.7)(react@19.1.0)
+    devDependencies:
+      '@posthog/cli':
+        specifier: ^0.13.3
+        version: 0.13.3
 
 packages:
 
@@ -717,6 +721,11 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@posthog/cli@0.13.3':
+    resolution: {integrity: sha512-gTY2SJthey44imGc8waB3LGdQPT0ugLP9HdnBJpL0HyTYIjYtm7xiF6D3Ajs6KdCBsSRi9Xv60ugsGS+h4d3JQ==}
+    engines: {node: '>=14.14', npm: '>=6'}
+    hasBin: true
 
   '@posthog/core@1.48.3':
     resolution: {integrity: sha512-kwVDVvwtCTXctApA2tpnwDjDDan8LrkwCW1Wv6PABaVs/s5ahbQ9W3pvdXcqr71HCuqukSA1jp7MySczebubGg==}
@@ -3651,6 +3660,10 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@posthog/cli@0.13.3':
+    dependencies:
+      detect-libc: 2.1.2
 
   '@posthog/core@1.48.3':
     dependencies:

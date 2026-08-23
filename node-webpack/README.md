@@ -37,11 +37,12 @@ Two build paths share the app:
 
 ## Local bits this depends on
 
-Everything unreleased comes from local builds:
+The CLI is the published `@posthog/cli` — event mode and debug id adoption shipped in 0.11
+and 0.12. It is a direct devDependency here, because the plugin's own pinned `@posthog/cli`
+is older and would otherwise win the binary lookup.
 
-- **posthog-cli** from `../../posthog/cli/target/debug/posthog-cli` (`cargo build` on the
-  `ab/feat/cli-event-mode-debug-ids` branch of the posthog monorepo — event mode plus debug id
-  adoption, [posthog PR #85307](https://github.com/PostHog/posthog/pull/85307)).
+The plugin and the SDK are still local builds:
+
 - `vendor/posthog-plugin-utils.tgz` + `vendor/posthog-webpack-plugin.tgz` — packed from the
   `ab/feat/webpack-event-release-mode` branch of
   [posthog-js PR #4563](https://github.com/PostHog/posthog-js/pull/4563).

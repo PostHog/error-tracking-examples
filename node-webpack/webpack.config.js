@@ -3,10 +3,6 @@ require('dotenv').config();
 const path = require('path');
 const { PosthogWebpackPlugin } = require('@posthog/webpack-plugin');
 
-// Event mode needs `posthog-cli release resolve` and debug id adoption, which the published
-// @posthog/cli doesn't have yet, so point the plugin at the local build from the posthog monorepo.
-const localCli = path.resolve(__dirname, '../../posthog/cli/target/debug/posthog-cli');
-
 module.exports = {
   mode: 'production',
   target: 'node',
@@ -36,7 +32,9 @@ module.exports = {
       personalApiKey: process.env.POSTHOG_API_KEY,
       projectId: process.env.POSTHOG_PROJECT_ID,
       host: process.env.POSTHOG_HOST,
-      cliBinaryPath: localCli,
+      // No cliBinaryPath: the plugin finds node_modules/.bin/posthog-cli, which is the
+      // published @posthog/cli this app depends on directly (see package.json — the direct
+      // dependency is what keeps the plugin's own older pin from winning the lookup).
       sourcemaps: {
         enabled: true,
         releaseName: 'node-webpack-error-tracking-example',

@@ -1,4 +1,3 @@
-import com.posthog.android.PostHogCliExecTask
 import java.util.Properties
 
 plugins {
@@ -11,6 +10,11 @@ plugins {
 // Credentials live in the repo-root .env and are copied here by bin/copy-env.
 // The SDK needs them baked into the APK; posthog-cli reads the same file itself
 // via the posthog.dotenvFile gradle property.
+//
+// The gradle plugin looks posthog-cli up on PATH (and in the usual npm/cargo
+// install dirs), so the mapping upload uses whatever `npm install -g
+// @posthog/cli` put there — 0.13.0 or newer, which is where `proguard upload
+// --release-mode` landed.
 val env =
     Properties().apply {
         val file = rootProject.file(".env")
@@ -76,10 +80,4 @@ android {
 
 dependencies {
     implementation("com.posthog:posthog-android:3.58.3")
-}
-
-tasks.withType<PostHogCliExecTask>().configureEach {
-    // Local posthog-cli build from the posthog monorepo — `proguard upload
-    // --release-mode` has not shipped in a release yet. Built by ../bin/build-cli.
-    postHogExecutable.set(rootProject.file("../../posthog/cli/target/release/posthog-cli").absolutePath)
 }

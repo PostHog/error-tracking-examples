@@ -32,7 +32,7 @@ Two build paths share the app:
 
 ## Local bits this depends on
 
-The CLI is the released `@posthog/cli` (a devDependency here — it has to be a direct one, because the
+The CLI is the published `@posthog/cli` (a devDependency here — it has to be a direct one, because the
 plugin's own pinned `@posthog/cli` is older and would otherwise win the binary lookup). The plugin is
 still a local build, because the plugin change hasn't shipped.
 

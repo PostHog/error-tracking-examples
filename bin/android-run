@@ -3,18 +3,22 @@
 #
 #   bin/android-run android-legacy [versionName]
 #
-# Builds the local posthog-cli and publishes the local posthog-android to ~/.m2
-# (both unreleased, both required), boots the emulator if none is attached,
-# assembles the release variant — which is what uploads the proguard mapping —
-# installs it, launches it and streams its logs. Tap "Capture exception" in the
-# app to report one.
+# Publishes the local posthog-android to ~/.m2 (unreleased, and required for
+# `posthog.releaseMode`), boots the emulator if none is attached, assembles the
+# release variant — which is what uploads the proguard mapping — installs it,
+# launches it and streams its logs. Tap "Capture exception" in the app to report
+# one.
+#
+# The mapping upload shells out to whatever posthog-cli is on PATH; install it
+# with `npm install -g @posthog/cli` (0.13.0 or newer, for `proguard upload
+# --release-mode`).
 #
 # Pass a versionName to ship the same code as a second release. That is the
 # case the two examples exist to contrast: the mapping is identical, so both
 # releases get the same content-addressed map id.
 #
-# POSTHOG_SKIP_DEPS=1 skips rebuilding posthog-cli and republishing
-# posthog-android to ~/.m2, which is most of the runtime once they are current.
+# POSTHOG_SKIP_DEPS=1 skips republishing posthog-android to ~/.m2, which is most
+# of the runtime once it is current.
 set -euo pipefail
 
 APP=${1:?usage: bin/android-run <example-dir> [versionName]}
@@ -30,13 +34,12 @@ EMULATOR="$ANDROID_HOME/emulator/emulator"
 [[ -d $APP ]] || { echo "error: no example dir $APP" >&2; exit 1; }
 [[ -x $ADB ]] || { echo "error: no adb at $ADB — set ANDROID_HOME" >&2; exit 1; }
 
-# Both dependencies are local working copies, so they are rebuilt by default.
-# Set POSTHOG_SKIP_DEPS=1 to skip both when only the example itself changed —
+# posthog-android is a local working copy, so it is republished by default.
+# Set POSTHOG_SKIP_DEPS=1 to skip that when only the example itself changed —
 # that is the difference between a ~30s run and a ~5s one.
 if [[ ${POSTHOG_SKIP_DEPS:-0} == 1 ]]; then
-  echo 'POSTHOG_SKIP_DEPS=1 — using the posthog-cli and ~/.m2 artifacts already built'
+  echo 'POSTHOG_SKIP_DEPS=1 — using the ~/.m2 artifacts already published'
 else
-  "$ROOT/bin/build-cli"
   "$ROOT/bin/publish-posthog-local"
 fi
 

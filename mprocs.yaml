@@ -19,13 +19,12 @@
 # (Legacy) proc fails the SRI check every time by design.
 # (ios-raw is a Swift app with no package.json, so it has no proc here.)
 #
-# The android-* procs build against local working copies — posthog-cli from the
-# posthog monorepo and posthog-android from its own repo, both published to
-# ~/.m2 on the way — because `posthog.releaseMode` and `proguard upload
-# --release-mode` are unreleased. Each one boots the emulator if none is
-# attached, installs its APK and streams its logs; tap "Capture exception" in
-# the app to send one. Set POSTHOG_SKIP_DEPS=1 to skip the local rebuilds once
-# they are current.
+# The android-* procs build against a local working copy of posthog-android,
+# published to ~/.m2 on the way, because `posthog.releaseMode` is unreleased;
+# the mapping upload uses the published posthog-cli off PATH. Each one boots the
+# emulator if none is attached, installs its APK and streams its logs; tap
+# "Capture exception" in the app to send one. Set POSTHOG_SKIP_DEPS=1 to skip
+# the republish once it is current.
 
 procs:
   # Named to sort alphabetically before every example: phrocs selects the

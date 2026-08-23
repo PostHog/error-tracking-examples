@@ -25,21 +25,21 @@ device and each gets its own release and mapping). Tap **Capture exception** in
 the app to report a handled exception; its stack trace is obfuscated by R8, so
 it only reads back once PostHog applies the mapping the build uploaded.
 
-Both build against local working copies, because neither
-`posthog.releaseMode` nor `proguard upload --release-mode` has shipped in a
-release yet:
+Both build against a local working copy of **posthog-android** and its gradle
+plugin, published to `~/.m2` (`bin/publish-posthog-local`), because
+`posthog.releaseMode` has not shipped in a release yet.
 
-- **posthog-cli** from `../posthog/cli/target/release` (`bin/build-cli`)
-- **posthog-android** and its gradle plugin, published to `~/.m2`
-  (`bin/publish-posthog-local`)
+The mapping upload itself uses the published CLI, which the gradle plugin looks
+up on PATH — install it once with `npm install -g @posthog/cli` (0.13.0 or
+newer, where `proguard upload --release-mode` landed).
 
 The mapping upload is forced on every run (`--rerun`). Gradle would otherwise
 skip it silently when the mapping has not changed, and `1 skipped (1 already
 present)` is exactly the result worth seeing: it means two builds produced the
 same content-addressed map id.
 
-Both dependencies are rebuilt on every run. Once they are current that is most of the
-runtime, so `POSTHOG_SKIP_DEPS=1` skips them.
+posthog-android is republished on every run. Once it is current that is most of the
+runtime, so `POSTHOG_SKIP_DEPS=1` skips it.
 
 ```bash
 bin/android-run android-legacy          # build, install, launch, stream logs
@@ -59,7 +59,7 @@ local Caddy serves only its `localhost` site — everything else gets an empty
 `200` that the SDK reports as a successful send while nothing is ingested.
 
 An emulator is cold booted automatically when no device is attached. Override
-the AVD with `ANDROID_AVD`, and the repo locations with `POSTHOG_REPO` /
+the AVD with `ANDROID_AVD`, and the posthog-android checkout with
 `POSTHOG_ANDROID_REPO`.
 
 Cold, not resumed, on purpose: a snapshot resume restores the OS network-time

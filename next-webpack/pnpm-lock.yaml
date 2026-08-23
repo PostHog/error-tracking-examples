@@ -28,6 +28,10 @@ importers:
       react-dom:
         specifier: 19.1.0
         version: 19.1.0(react@19.1.0)
+    devDependencies:
+      '@posthog/cli':
+        specifier: ^0.13.3
+        version: 0.13.3
 
 packages:
 
@@ -243,8 +247,8 @@ packages:
     engines: {node: '>=14.14', npm: '>=6'}
     hasBin: true
 
-  '@posthog/cli@0.13.0':
-    resolution: {integrity: sha512-ZP7ZLmFyjLakGjkDzm3/Eu5XvonY4pFD1SOtMc5TjkwYS6TmihuuLp0iDp+X7Pd9xFI0eLtBpfV/G9HI/XRZbg==}
+  '@posthog/cli@0.13.3':
+    resolution: {integrity: sha512-gTY2SJthey44imGc8waB3LGdQPT0ugLP9HdnBJpL0HyTYIjYtm7xiF6D3Ajs6KdCBsSRi9Xv60ugsGS+h4d3JQ==}
     engines: {node: '>=14.14', npm: '>=6'}
     hasBin: true
 
@@ -813,7 +817,7 @@ snapshots:
     dependencies:
       detect-libc: 2.1.2
 
-  '@posthog/cli@0.13.0':
+  '@posthog/cli@0.13.3':
     dependencies:
       detect-libc: 2.1.2
 
@@ -823,7 +827,7 @@ snapshots:
 
   '@posthog/nextjs-config@file:vendor/posthog-nextjs-config.tgz(next@15.5.23(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(webpack@5.109.2)':
     dependencies:
-      '@posthog/cli': 0.13.0
+      '@posthog/cli': 0.13.3
       '@posthog/plugin-utils': file:vendor/posthog-plugin-utils.tgz
       '@posthog/webpack-plugin': file:vendor/posthog-webpack-plugin.tgz(webpack@5.109.2)
       next: 15.5.23(react-dom@19.1.0(react@19.1.0))(react@19.1.0)

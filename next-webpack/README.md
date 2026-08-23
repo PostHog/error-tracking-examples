@@ -28,12 +28,12 @@ through a 3-deep chain (`one -> two -> threeRenamed`) and captures the exception
 
 ## Local bits this depends on
 
-- **posthog-cli** from `../../posthog/cli/target/debug/posthog-cli`
-  ([posthog PR #85307](https://github.com/PostHog/posthog/pull/85307)).
 - `vendor/*.tgz` - `@posthog/nextjs-config`, `@posthog/webpack-plugin`, and `@posthog/plugin-utils`
   packed from the `ab/feat/webpack-event-release-mode` branch of
   [posthog-js PR #4563](https://github.com/PostHog/posthog-js/pull/4563), plus the SDK tarballs
-  shared with the other node examples. `package.json` consumes them via `file:` and pnpm overrides.
+  shared with the other node examples. `package.json` consumes them via `file:` and pnpm overrides. The CLI is the published
+  `@posthog/cli` (a direct devDependency, so the plugin's binary lookup finds it in
+  `node_modules/.bin`).
 
 ## Credentials
 

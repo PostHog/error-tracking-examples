@@ -24,5 +24,8 @@
       "@posthog/plugin-utils": "file:./vendor/posthog-plugin-utils.tgz",
       "@posthog/core": "file:./vendor/posthog-core.tgz"
     }
+  },
+  "devDependencies": {
+    "@posthog/cli": "^0.13.3"
   }
 }

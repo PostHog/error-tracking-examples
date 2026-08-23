@@ -16,6 +16,9 @@ importers:
         specifier: file:./vendor/posthog-node.tgz
         version: file:vendor/posthog-node.tgz
     devDependencies:
+      '@posthog/cli':
+        specifier: ^0.13.3
+        version: 0.13.3
       '@posthog/webpack-plugin':
         specifier: file:./vendor/posthog-webpack-plugin.tgz
         version: file:vendor/posthog-webpack-plugin.tgz(webpack@5.109.2)
@@ -62,6 +65,11 @@ packages:
 
   '@posthog/cli@0.11.3':
     resolution: {integrity: sha512-LOQ/x4IBjbomKJVhJqMV/PgGqQoe1GwaijbVdZrMH0FhsURaKMZ25L5rplV0jiqbcpkvDIM5NAfByqa+untbAw==}
+    engines: {node: '>=14.14', npm: '>=6'}
+    hasBin: true
+
+  '@posthog/cli@0.13.3':
+    resolution: {integrity: sha512-gTY2SJthey44imGc8waB3LGdQPT0ugLP9HdnBJpL0HyTYIjYtm7xiF6D3Ajs6KdCBsSRi9Xv60ugsGS+h4d3JQ==}
     engines: {node: '>=14.14', npm: '>=6'}
     hasBin: true
 
@@ -626,6 +634,10 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.5.5
 
   '@posthog/cli@0.11.3':
+    dependencies:
+      detect-libc: 2.1.2
+
+  '@posthog/cli@0.13.3':
     dependencies:
       detect-libc: 2.1.2
 

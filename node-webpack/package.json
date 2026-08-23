@@ -2,7 +2,7 @@
   "name": "node-webpack",
   "version": "0.1.0",
   "private": true,
-  "description": "Minimal Node.js + webpack app instrumented with PostHog error tracking and source map upload. `start` binds the uploaded symbol sets to a release the usual way; `start:releaseless` flips the plugin onto --release-mode=event: webpack stamps native debug ids, and posthog-cli adopts them as chunk ids while injecting a release id into every chunk. The plugin and the SDK are local builds, since neither change has shipped, and so is the CLI (event mode needs `release resolve` and debug id adoption).",
+  "description": "Minimal Node.js + webpack app instrumented with PostHog error tracking and source map upload. `start` binds the uploaded symbol sets to a release the usual way; `start:releaseless` flips the plugin onto --release-mode=event: webpack stamps native debug ids, and posthog-cli adopts them as chunk ids while injecting a release id into every chunk. The plugin and the SDK are local builds, since neither change has shipped; the CLI is the published @posthog/cli.",
   "scripts": {
     "build": "webpack --config webpack.config.js",
     "build:releaseless": "POSTHOG_RELEASE_MODE=event webpack --config webpack.config.js",
@@ -15,6 +15,7 @@
     "posthog-node": "file:./vendor/posthog-node.tgz"
   },
   "devDependencies": {
+    "@posthog/cli": "^0.13.3",
     "@posthog/webpack-plugin": "file:./vendor/posthog-webpack-plugin.tgz",
     "@types/node": "^22.0.0",
     "dotenv": "^17.0.0",
