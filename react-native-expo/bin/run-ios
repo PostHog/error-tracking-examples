@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# Build, upload and launch one release-mode variant of the Expo app on the iOS simulator.
+#
+#   bin/run-ios legacy          # posthog.releaseMode unset — the release binds to the symbol set
+#   bin/run-ios releaseless     # releaseMode: 'event' — symbols upload release-independent
+#   APP_VERSION=2.0.0 bin/run-ios releaseless
+#   APP_ID_SUFFIX=.demo bin/run-ios legacy   # a bundle identifier PostHog has never seen
+#
+# This is a Release configuration build on purpose. A Debug build sets SKIP_BUNDLING, so metro
+# never produces a bundle, posthog-xcode.sh uploads nothing, and there is no symbolication to
+# check. Release runs the whole chain inside Xcode: metro, hermesc, compose-source-maps,
+# `posthog-cli hermes clone`, `posthog-cli hermes upload`, then the dSYM upload phase.
+#
+# Each variant gets its own bundle identifier, so both can sit on one simulator and each keeps its
+# own release lineage in PostHog.
+set -euo pipefail
+
+MODE=${1:-}
+case "$MODE" in
+  legacy)      RELEASE_MODE=symbol-set ;;
+  releaseless) RELEASE_MODE=event ;;
+  *)
+    echo "usage: bin/run-ios <legacy|releaseless>" >&2
+    exit 1
+    ;;
+esac
+
+cd "$(dirname "$0")/.."
+EXAMPLES_ROOT=$(cd .. && pwd)
+
+if [[ ! -f .env ]]; then
+  echo "error: no .env here — run $EXAMPLES_ROOT/bin/copy-env first" >&2
+  exit 1
+fi
+
+# Credentials for posthog-cli come from .env, which posthog-cli reads itself through the
+# posthog.dotenvFile prop. These exports are for the runtime SDK instead.
+set -a
+# shellcheck disable=SC1091
+. ./.env
+set +a
+
+export EXPO_PUBLIC_POSTHOG_HOST="${POSTHOG_HOST:-http://localhost:8010}"
+export EXPO_PUBLIC_POSTHOG_KEY="${POSTHOG_KEY:?POSTHOG_KEY missing from .env}"
+# One exception on launch, so a run needs nobody to tap the screen. Set AUTO_CAPTURE=0 to drive it
+# by hand instead.
+export EXPO_PUBLIC_AUTO_CAPTURE=${AUTO_CAPTURE:-1}
+# One launch then produces both reports: the JavaScript exception, and a native crash that kills
+# the app. Set AUTO_NATIVE_CRASH=0 to keep the app alive and press the button instead.
+export EXPO_PUBLIC_AUTO_NATIVE_CRASH=${AUTO_NATIVE_CRASH:-1}
+# Inlined into the bundle so the two variants do not produce identical JavaScript. They are
+# separate apps, and a hermes chunk id comes from bundle content, so identical bundles would
+# share one symbol set and the second variant to build would fail on a content conflict.
+export EXPO_PUBLIC_APP_VARIANT="$MODE${APP_ID_SUFFIX:-}"
+
+export APP_VARIANT="$MODE"
+# Appended to the bundle identifier, so a run can start from an app PostHog has never seen: no
+# release rows to reuse and no symbol sets to collide with. It also reaches the bundle through
+# EXPO_PUBLIC_APP_VARIANT above, which keeps the chunk ids of such a run new as well.
+export APP_ID_SUFFIX=${APP_ID_SUFFIX:-}
+export POSTHOG_RELEASE_MODE="$RELEASE_MODE"
+export APP_VERSION=${APP_VERSION:-1.0.0}
+export APP_BUILD=${APP_BUILD:-1}
+
+# The Xcode build phase looks for posthog-cli in ~/.posthog first, and needs the local build
+# because `hermes clone --release-mode` is unreleased.
+"$EXAMPLES_ROOT/bin/install-posthog-cli-local"
+
+# Pick a simulator up front. expo run:ios prompts when it cannot decide, which hangs a proc that
+# has no terminal attached.
+DEVICE=${IOS_SIMULATOR:-}
+if [[ -z $DEVICE ]]; then
+  DEVICE=$(xcrun simctl list devices available --json \
+    | python3 -c '
+import json, sys
+runtimes = json.load(sys.stdin)["devices"]
+best = None
+for runtime, devices in runtimes.items():
+    if "iOS" not in runtime:
+        continue
+    for device in devices:
+        if not device.get("isAvailable") or "iPhone" not in device["name"]:
+            continue
+        # A booted simulator is the one the developer is already looking at.
+        rank = (device["state"] == "Booted", runtime)
+        if best is None or rank > best[0]:
+            best = (rank, device["udid"], device["name"], runtime)
+print(best[1] if best else "")
+')
+fi
+if [[ -z $DEVICE ]]; then
+  echo "error: no available iPhone simulator — open Xcode and install one" >&2
+  exit 1
+fi
+
+echo
+echo "variant      : $MODE"
+echo "release mode : $RELEASE_MODE"
+BUNDLE_ID=$(node -p "require('./app.json').expo.ios.bundleIdentifier")
+if [[ $MODE == releaseless ]]; then
+  BUNDLE_ID="$BUNDLE_ID.releaseless"
+fi
+BUNDLE_ID="$BUNDLE_ID$APP_ID_SUFFIX"
+echo "release      : $BUNDLE_ID@$APP_VERSION+$APP_BUILD"
+echo "simulator    : $DEVICE"
+echo
+
+# The generated project belongs to one variant: a different bundle identifier, a different release
+# mode baked into the build phase. Switching variants therefore needs a clean prebuild, while
+# rerunning the same one does not, and a plain prebuild is much faster because the pods survive.
+# The plugin rewrites its own managed lines in place, so the release mode still refreshes.
+STAMP=.expo/posthog-variant
+PREBUILD_ARGS=""
+if [[ ! -d ios || $(cat "$STAMP" 2>/dev/null) != "$MODE$APP_ID_SUFFIX" ]]; then
+  PREBUILD_ARGS="--clean"
+fi
+# shellcheck disable=SC2086
+pnpm exec expo prebuild --platform ios $PREBUILD_ARGS
+mkdir -p "$(dirname "$STAMP")"
+printf '%s' "$MODE$APP_ID_SUFFIX" > "$STAMP"
+
+# --no-bundler because a Release build embeds its bundle and needs no metro server, and leaving
+# one running would keep this script from ever exiting.
+pnpm exec expo run:ios --configuration Release --no-bundler --device "$DEVICE"
+
+# expo launches the app over a deep link, which iOS answers with a confirmation alert whenever
+# another build holds the foreground. That alert blocks the launch and nothing on the command line
+# dismisses it, so restart the simulator and drive the lifecycle here instead.
+echo
+echo "restarting the simulator, then running the app"
+xcrun simctl shutdown "$DEVICE" >/dev/null 2>&1 || true
+xcrun simctl boot "$DEVICE" >/dev/null 2>&1 || true
+xcrun simctl bootstatus "$DEVICE" >/dev/null 2>&1 || true
+
+# The first launch reports the JavaScript exception and then crashes. posthog-ios writes the crash
+# report to disk, so a second launch is what actually sends it. Stop that one before its own crash
+# timer fires, or every run would leave another crash behind.
+# Clear the marker so the next launch is the one that crashes, whatever earlier launches did.
+APP_DATA=$(xcrun simctl get_app_container "$DEVICE" "$BUNDLE_ID" data)
+rm -f "$APP_DATA/Documents/native-crash-armed"
+
+xcrun simctl launch "$DEVICE" "$BUNDLE_ID"
+sleep 16
+xcrun simctl launch "$DEVICE" "$BUNDLE_ID"
+# posthog-ios queues the crash report like any other event and flushes on a 30 second timer, so
+# this launch has to stay up past that. It does not crash: the app disarms itself on this one.
+sleep 50
+xcrun simctl terminate "$DEVICE" "$BUNDLE_ID" >/dev/null 2>&1 || true
+
+echo
+echo
+echo "Done. The run reported one JavaScript exception and one native crash."
+echo "Raw Xcode build log, including every posthog-cli line: $PWD/.expo/xcodebuild.log"
+echo "Check error tracking in PostHog: the stack should read back through"
+echo "src/checkout.js -> src/order.js -> src/amount.js with source context."

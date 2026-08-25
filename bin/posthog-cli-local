@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Run the working copy of posthog-cli instead of a published @posthog/cli, for examples that
+# need flags no release carries yet. Arguments are forwarded verbatim:
+#
+#   bin/posthog-cli-local --dotenv-file .env hermes upload --directory dist
+#
+# Override the checkout with POSTHOG_REPO, and skip the (usually no-op) rebuild with
+# POSTHOG_CLI_SKIP_BUILD=1.
+set -euo pipefail
+
+POSTHOG_REPO=${POSTHOG_REPO:-"$(cd "$(dirname "$0")/../../posthog" && pwd 2>/dev/null || true)"}
+CLI_DIR="$POSTHOG_REPO/cli"
+BINARY="$CLI_DIR/target/debug/posthog-cli"
+
+if [[ ! -f $CLI_DIR/Cargo.toml ]]; then
+  echo "error: no posthog-cli checkout at $CLI_DIR — set POSTHOG_REPO to your posthog clone" >&2
+  exit 1
+fi
+
+if [[ ${POSTHOG_CLI_SKIP_BUILD:-} != 1 ]]; then
+  CARGO=$(command -v cargo || true)
+  # Rust often lives outside a GUI-launched shell's PATH, and the posthog repo keeps its own
+  # toolchain in flox.
+  for candidate in "$HOME/.cargo/bin/cargo" "$POSTHOG_REPO/.flox/run/$(uname -m)-darwin.posthog.dev/bin/cargo"; do
+    [[ -n $CARGO ]] && break
+    [[ -x $candidate ]] && CARGO=$candidate
+  done
+  if [[ -z $CARGO ]]; then
+    echo "error: cargo not found — install Rust, or build the CLI yourself and rerun with POSTHOG_CLI_SKIP_BUILD=1" >&2
+    exit 1
+  fi
+  # Cargo is quiet when nothing changed, so this is cheap to rerun. Its output goes to stderr
+  # already, which keeps the CLI's own stdout clean for callers that parse it.
+  "$CARGO" build --quiet --manifest-path "$CLI_DIR/Cargo.toml"
+fi
+
+if [[ ! -x $BINARY ]]; then
+  echo "error: $BINARY is missing — build it with 'cargo build' in $CLI_DIR" >&2
+  exit 1
+fi
+
+exec "$BINARY" "$@"

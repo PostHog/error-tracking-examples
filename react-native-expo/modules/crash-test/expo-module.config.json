@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["CrashTestModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.crashtest.CrashTestModule"]
+  }
+}

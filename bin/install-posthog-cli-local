@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Put the working copy of posthog-cli where an Xcode build phase will find it.
+#
+# posthog-xcode.sh resolves the CLI in a fixed order and checks ~/.posthog/posthog-cli first, so
+# that is the only location guaranteed to win over a globally installed @posthog/cli. The examples
+# that drive a real native build need the local build, because `hermes clone --release-mode` and
+# `hermes upload --release-mode` are unreleased.
+#
+# Installs a symlink, so `ls -l ~/.posthog/posthog-cli` says where it points and removing it
+# restores whatever you had. Set POSTHOG_REPO to override the checkout.
+set -euo pipefail
+
+POSTHOG_REPO=${POSTHOG_REPO:-"$(cd "$(dirname "$0")/../../posthog" && pwd 2>/dev/null || true)"}
+BINARY="$POSTHOG_REPO/cli/target/debug/posthog-cli"
+TARGET="$HOME/.posthog/posthog-cli"
+
+# Builds on demand; cargo is quiet when nothing changed.
+"$(dirname "$0")/posthog-cli-local" --version >/dev/null
+
+mkdir -p "$(dirname "$TARGET")"
+
+if [[ -e $TARGET && ! -L $TARGET ]]; then
+  mv "$TARGET" "$TARGET.bak"
+  echo "moved the previous posthog-cli to $TARGET.bak"
+fi
+
+ln -sf "$BINARY" "$TARGET"
+echo "~/.posthog/posthog-cli -> $BINARY ($("$TARGET" --version))"
+
+# The Android gradle tooling resolves @posthog/cli from node_modules before it looks anywhere else,
+# so pointing ~/.posthog at the working copy is not enough. Swap the binary that package runs too,
+# wherever an example installed it.
+for wrapped in "$(dirname "$0")"/../*/node_modules/@posthog/cli/node_modules/.bin_real/posthog-cli; do
+  [ -e "$wrapped" ] || continue
+  if [ ! -L "$wrapped" ]; then
+    mv "$wrapped" "$wrapped.bak"
+  fi
+  ln -sf "$BINARY" "$wrapped"
+  echo "$wrapped -> $BINARY"
+done

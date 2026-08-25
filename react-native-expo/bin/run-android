@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# Build, upload and launch one release-mode variant of the Expo app on an Android emulator.
+#
+#   bin/run-android legacy          # posthog.releaseMode unset — the release binds to the symbol set
+#   bin/run-android releaseless     # releaseMode: 'event' — symbols upload release-independent
+#   APP_ID_SUFFIX=.demo bin/run-android legacy   # a package name PostHog has never seen
+#
+# This is a release build on purpose. A debug build serves the bundle from metro, so hermesc never
+# runs over an embedded bundle and there is nothing to upload. Release runs the whole chain inside
+# Gradle: metro, hermesc, `posthog-cli hermes clone`, `posthog-cli hermes upload`, then the
+# com.posthog.android plugin's R8 mapping upload.
+set -euo pipefail
+
+MODE=${1:-}
+case "$MODE" in
+  legacy)      RELEASE_MODE=symbol-set ;;
+  releaseless) RELEASE_MODE=event ;;
+  *)
+    echo "usage: bin/run-android <legacy|releaseless>" >&2
+    exit 1
+    ;;
+esac
+
+cd "$(dirname "$0")/.."
+EXAMPLES_ROOT=$(cd .. && pwd)
+export ANDROID_HOME=${ANDROID_HOME:-$HOME/Library/Android/sdk}
+ADB="$ANDROID_HOME/platform-tools/adb"
+EMULATOR="$ANDROID_HOME/emulator/emulator"
+
+if [[ ! -f .env ]]; then
+  echo "error: no .env here — run $EXAMPLES_ROOT/bin/copy-env first" >&2
+  exit 1
+fi
+
+set -a
+# shellcheck disable=SC1091
+. ./.env
+set +a
+
+# The app keeps the .env host and `adb reverse` carries the port to the machine running the stack,
+# so the emulator resolves it the same way the iOS simulator does.
+export EXPO_PUBLIC_POSTHOG_HOST="${POSTHOG_HOST:-http://localhost:8010}"
+export EXPO_PUBLIC_POSTHOG_KEY="${POSTHOG_KEY:?POSTHOG_KEY missing from .env}"
+export EXPO_PUBLIC_AUTO_CAPTURE=${AUTO_CAPTURE:-1}
+export EXPO_PUBLIC_AUTO_NATIVE_CRASH=${AUTO_NATIVE_CRASH:-1}
+export EXPO_PUBLIC_APP_VARIANT="$MODE${APP_ID_SUFFIX:-}"
+
+export APP_VARIANT="$MODE"
+export APP_ID_SUFFIX=${APP_ID_SUFFIX:-}
+export POSTHOG_RELEASE_MODE="$RELEASE_MODE"
+export APP_VERSION=${APP_VERSION:-1.0.0}
+export APP_BUILD=${APP_BUILD:-1}
+
+"$EXAMPLES_ROOT/bin/install-posthog-cli-local"
+
+PACKAGE_ID=$(node -p "require('./app.json').expo.android.package")
+if [[ $MODE == releaseless ]]; then
+  PACKAGE_ID="$PACKAGE_ID.releaseless"
+fi
+PACKAGE_ID="$PACKAGE_ID$APP_ID_SUFFIX"
+
+# Boot the emulator if nothing is attached. `emulator` keeps running in the foreground, so it goes
+# to the background and adb waits for the device to finish booting.
+if [[ -z $("$ADB" devices | sed -n '2p') ]]; then
+  AVD=${ANDROID_AVD:-$("$EMULATOR" -list-avds | head -1)}
+  if [[ -z $AVD ]]; then
+    echo "error: no Android AVD — create one in Android Studio" >&2
+    exit 1
+  fi
+  echo "booting emulator $AVD"
+  "$EMULATOR" -avd "$AVD" -no-snapshot-save -no-boot-anim >/dev/null 2>&1 &
+  "$ADB" wait-for-device
+  until [[ $("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r') == 1 ]]; do sleep 3; done
+fi
+
+POSTHOG_PORT=$(printf '%s' "$EXPO_PUBLIC_POSTHOG_HOST" | sed -E 's#.*:([0-9]+).*#\1#')
+"$ADB" reverse "tcp:$POSTHOG_PORT" "tcp:$POSTHOG_PORT" >/dev/null
+
+echo
+echo "variant      : $MODE"
+echo "release mode : $RELEASE_MODE"
+echo "release      : $PACKAGE_ID@$APP_VERSION+$APP_BUILD"
+echo "device       : $("$ADB" devices | sed -n '2p' | cut -f1)"
+echo
+
+STAMP=.expo/posthog-variant-android
+PREBUILD_ARGS=""
+if [[ ! -d android || $(cat "$STAMP" 2>/dev/null) != "$MODE$APP_ID_SUFFIX" ]]; then
+  PREBUILD_ARGS="--clean"
+fi
+# shellcheck disable=SC2086
+pnpm exec expo prebuild --platform android $PREBUILD_ARGS
+mkdir -p "$(dirname "$STAMP")"
+printf '%s' "$MODE$APP_ID_SUFFIX" > "$STAMP"
+
+# A release build blocks plain HTTP, and the dev stack is http://10.0.2.2:8010. Expo only sets this
+# for debug builds, and prebuild rewrites the manifest, so it goes in afterwards.
+python3 - <<'PATCH'
+import pathlib, re
+p = pathlib.Path('android/app/src/main/AndroidManifest.xml')
+t = p.read_text()
+if 'usesCleartextTraffic' not in t:
+    t = re.sub(r'(<application\b)', r'\1 android:usesCleartextTraffic="true"', t, count=1)
+    p.write_text(t)
+    print('AndroidManifest: allowed cleartext traffic')
+PATCH
+
+# The Expo template leaves R8 off, and without it a release build produces no mapping file, so the
+# com.posthog.android plugin has no upload to make. prebuild rewrites gradle.properties, so this
+# goes in afterwards.
+if ! grep -q '^android.enableMinifyInReleaseBuilds=true' android/gradle.properties; then
+  printf '\nandroid.enableMinifyInReleaseBuilds=true\n' >> android/gradle.properties
+fi
+
+# Gradle prints the posthog-cli output straight through, so the whole build log is the record.
+BUILD_LOG=${POSTHOG_BUILD_LOG:-$PWD/.expo/gradle-build.log}
+mkdir -p "$(dirname "$BUILD_LOG")"
+pnpm exec expo run:android --variant release --no-bundler 2>&1 | tee "$BUILD_LOG"
+
+# A release build blocks `run-as`, so the marker cannot be written from here. Clearing the app's
+# storage reaches the same known state: the next launch is the one that crashes.
+MAIN_ACTIVITY=".MainActivity"
+"$ADB" shell am force-stop "$PACKAGE_ID" || true
+"$ADB" shell pm clear "$PACKAGE_ID" >/dev/null
+"$ADB" shell am start -n "$PACKAGE_ID/$MAIN_ACTIVITY" >/dev/null
+sleep 16
+"$ADB" shell am start -n "$PACKAGE_ID/$MAIN_ACTIVITY" >/dev/null
+# posthog-android queues the crash report and flushes on a timer, so this launch has to outlive it.
+sleep 50
+"$ADB" shell am force-stop "$PACKAGE_ID" || true
+
+echo
+echo "Done. The run reported one JavaScript exception and one native crash."
+echo "Gradle build log, including every posthog-cli line: $BUILD_LOG"

@@ -25,6 +25,12 @@
 # emulator if none is attached, installs its APK and streams its logs; tap
 # "Capture exception" in the app to send one. Set POSTHOG_SKIP_DEPS=1 to skip
 # the republish once it is current.
+#
+# The expo procs run a locally built posthog-cli, because `hermes clone --release-mode`
+# has not shipped either. The export-only procs reach it through bin/posthog-cli-local;
+# the full iOS builds go through bin/install-posthog-cli-local instead, which symlinks
+# ~/.posthog/posthog-cli at the build, since that is where an Xcode build phase looks
+# first. Both build the CLI on the way, so the first run is slow.
 
 procs:
   # Named to sort alphabetically before every example: phrocs selects the
@@ -107,22 +113,39 @@ procs:
     groups:
       layer: Releaseless
 
-  react-native-expo:
+  # Release build on the iOS simulator, end to end: metro, hermesc, compose-source-maps,
+  # posthog-cli hermes clone and upload, then install and launch. The app captures one
+  # exception a few seconds after launch, so a run needs nobody to tap the screen. The two
+  # variants use different bundle identifiers and can sit on the simulator together.
+  expo (ios):
+    shell: 'pnpm install && pnpm ios'
+    cwd: react-native-expo
+    autostart: false
+    groups:
+      layer: Legacy
+
+  expo-releaseless (ios):
+    shell: 'pnpm install && pnpm ios:releaseless'
+    cwd: react-native-expo
+    autostart: false
+    groups:
+      layer: Releaseless
+
+  # The EAS-update shaped flow: expo export plus a manual hermes upload, no Xcode. Much faster
+  # than the full build, and the only one of the two that covers uploading outside a native build.
+  expo (export only):
     shell: 'pnpm install && pnpm sourcemaps'
     cwd: react-native-expo
     autostart: false
     groups:
       layer: Legacy
 
-  # Debug build on the iOS simulator: good for tapping "Capture exception" and seeing the
-  # event arrive, but the dev bundle has no injected ids, so it does not exercise
-  # symbolication. The headless proc above is the sourcemap-pipeline check.
-  react-native-expo (ios app):
-    shell: 'pnpm install && pnpm start:ios'
+  expo-releaseless (export only):
+    shell: 'pnpm install && pnpm sourcemaps:releaseless'
     cwd: react-native-expo
     autostart: false
     groups:
-      layer: Legacy
+      layer: Releaseless
 
   web-raw:
     shell: 'pnpm install && pnpm start'

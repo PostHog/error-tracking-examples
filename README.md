@@ -69,6 +69,36 @@ weeks in the past and never appear in the dashboard's date range — which looks
 exactly like they were dropped. The apps also pin `dateProvider` to the device
 clock, so an emulator that was already up when you started does not hit this.
 
+## React Native
+
+`react-native-expo` is one Expo app that builds two ways, differing only in release mode. Both run
+the whole chain on the iOS simulator: metro, hermesc, compose-source-maps, `posthog-cli hermes
+clone` and `upload`, the dSYM upload phase, then install and launch. The app captures one exception
+a few seconds after launch, so a run needs nobody to tap the screen.
+
+```bash
+cd react-native-expo
+pnpm ios                 # legacy: the symbol set is bound to the release
+pnpm ios:releaseless     # event mode: symbols upload release-independent
+cd .. && bin/check-expo  # frames, release and source context for both
+```
+
+Each variant has its own bundle identifier, so both can sit on one simulator. Ship the same
+JavaScript again under a new version to see why event mode exists:
+
+```bash
+APP_VERSION=2.0.0 pnpm ios              # release_id_mismatch — the symbol set is taken
+APP_VERSION=2.0.0 pnpm ios:releaseless  # already present, new release row, own release reported
+```
+
+`pnpm sourcemaps` and `pnpm sourcemaps:releaseless` are the faster loop: `expo export` plus a
+manual `hermes upload`, no Xcode, which is the EAS-update shaped flow.
+
+Both paths run a locally built posthog-cli, and the app depends on a vendored posthog-react-native,
+because neither `hermes clone --release-mode` nor the Expo plugin's `releaseMode` prop has shipped.
+The native builds symlink `~/.posthog/posthog-cli` at the local build, since that is where an Xcode
+build phase looks first. See [react-native-expo/README.md](react-native-expo/README.md).
+
 ## iOS
 
 `ios-raw` is a plain Xcode project with no proc — open it in Xcode.

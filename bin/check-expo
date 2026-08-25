@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+"""Report what PostHog made of the exceptions the Expo example sent.
+
+    bin/check-expo              # both variants
+    bin/check-expo releaseless  # one of them
+
+For each variant it prints the app metadata the SDK reported, the release the server resolved,
+whether the symbol set carries a release of its own, and the frames after symbolication with the
+source context of the deepest one. That is the whole chain the two run-ios variants exercise:
+
+  - a frame still reading main.jsbundle means the source map never landed
+  - "symbol set release: none" plus a resolved release is event mode working
+  - "release: none resolved" in event mode means the coordinates did not match the app
+
+Reads credentials from the repo root .env. Uses the local dev login, because the query endpoint
+needs more than the error_tracking scope the stored personal API key carries.
+"""
+
+import json
+import sys
+import urllib.error
+import urllib.request
+from http.cookiejar import CookieJar
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+DEV_EMAIL = "test@posthog.com"
+DEV_PASSWORD = "12345678"
+
+
+def read_env() -> dict:
+    env_file = ROOT / ".env"
+    if not env_file.exists():
+        sys.exit("error: no .env at the repo root — run bin/copy-env first")
+    values = {}
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            values[key.strip()] = value.strip()
+    return values
+
+
+def login(host: str):
+    jar = CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+    opener.cookiejar = jar
+    attempts = (
+        (f"{host}/api/login/dev", {"email": DEV_EMAIL}),
+        (f"{host}/api/login", {"email": DEV_EMAIL, "password": DEV_PASSWORD}),
+    )
+    for url, payload in attempts:
+        request = urllib.request.Request(
+            url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"}
+        )
+        try:
+            opener.open(request, timeout=10)
+            return opener
+        except urllib.error.HTTPError:
+            continue
+    sys.exit(f"error: could not log in to {host} as {DEV_EMAIL} — is the dev stack up?")
+
+
+def post(opener, url: str, payload: dict) -> dict:
+    csrf = next((c.value for c in opener.cookiejar if c.name == "posthog_csrftoken"), "")
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json", "X-CSRFToken": csrf},
+    )
+    with opener.open(request, timeout=60) as response:
+        return json.load(response)
+
+
+def query(opener, host: str, hogql: str) -> list:
+    return post(opener, f"{host}/api/projects/1/query/", {"query": {"kind": "HogQLQuery", "query": hogql}}).get(
+        "results", []
+    )
+
+
+def scalar(value) -> str:
+    # ClickHouse hands a numeric build number back as a float, so 1 arrives as 1.0.
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
+def as_json(value):
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return None
+    return value
+
+
+def frames_of(exception_list) -> list:
+    collected = []
+    for exception in exception_list or []:
+        collected.extend(((exception.get("stacktrace") or {}).get("frames")) or [])
+    return collected
+
+
+def print_context(opener, host: str, frame: dict) -> None:
+    raw_id = frame.get("raw_id")
+    if not raw_id:
+        return
+    results = post(
+        opener,
+        f"{host}/api/projects/1/error_tracking/stack_frames/batch_get/",
+        {"raw_ids": [raw_id]},
+    ).get("results", [])
+    context = (results[0].get("context") if results else None) or {}
+    if not context:
+        print("      (no source context)")
+        return
+    for item in (context.get("before") or [])[-2:]:
+        print(f"      {item['number']:>4}   {item['line']}")
+    current = context.get("line") or {}
+    print(f"      {current.get('number'):>4} > {current.get('line')}")
+    for item in (context.get("after") or [])[:2]:
+        print(f"      {item['number']:>4}   {item['line']}")
+
+
+def main() -> None:
+    wanted = sys.argv[1] if len(sys.argv) > 1 else None
+    env = read_env()
+    host = env.get("POSTHOG_HOST", "http://localhost:8010")
+    opener = login(host)
+
+    rows = query(
+        opener,
+        host,
+        """
+        select
+            properties.$app_namespace,
+            properties.$app_version,
+            properties.$app_build,
+            properties.$exception_release,
+            properties.$exception_list,
+            timestamp
+        from events
+        where event = '$exception'
+          and properties.$app_namespace like 'com.posthog.example.rnexpo%'
+          and timestamp > now() - interval 3 hour
+        order by timestamp desc
+        limit 20
+        """,
+    )
+    if not rows:
+        print("no $exception events from the Expo example in the last 3 hours")
+        return
+
+    seen = set()
+    for namespace, version, build, release, exception_list, timestamp in rows:
+        variant = "releaseless" if str(namespace).endswith(".releaseless") else "legacy"
+        if (wanted and variant != wanted) or variant in seen:
+            continue
+        seen.add(variant)
+
+        release = as_json(release)
+        frames = frames_of(as_json(exception_list))
+        app_frames = [f for f in frames if f.get("in_app")]
+
+        print(f"\n  {variant}  ({str(timestamp)[:19]})")
+        print(f"    app             : {namespace}@{version}+{scalar(build)}")
+        if release:
+            print(f"    release         : {release.get('project')}@{release.get('version')}")
+        else:
+            print("    release         : none resolved")
+
+        chunk_ids = {
+            (f.get("junk_drawer") or {}).get("raw_frame", {}).get("chunkId") for f in frames
+        } - {None}
+        for chunk_id in sorted(chunk_ids):
+            print(f"    symbol set      : {chunk_id}")
+
+        print("    frames (in app) :")
+        for frame in app_frames:
+            mark = "✓" if frame.get("resolved") else "✗"
+            print(f"      {mark} {frame.get('source')}:{frame.get('line')} {frame.get('resolved_name')}")
+        if not app_frames:
+            print("      (none resolved into the app)")
+        else:
+            print("    source context of the deepest frame:")
+            print_context(opener, host, app_frames[-1])
+
+
+if __name__ == "__main__":
+    main()

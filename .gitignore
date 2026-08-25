@@ -1,2 +1,5 @@
 .DS_Store
 .env
+
+# python bytecode from bin/check-expo
+__pycache__/
