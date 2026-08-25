@@ -1,0 +1,20 @@
+[package]
+name = "rust-raw"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Minimal Rust binary instrumented with PostHog error tracking, using posthog-cli to upload the release build's debug symbols"
+
+[dependencies]
+# The blocking client: no tokio, nothing to await. `error-tracking` is on by default but has to
+# be re-added once default features are off.
+posthog-rs = { version = "0.25", default-features = false, features = ["error-tracking"] }
+
+# Cargo strips debug info from release builds, and there is nothing to upload without it.
+# `line-tables-only` is enough for file, line and inlined-frame resolution. `packed` is what
+# turns it into the target/release/rust-raw.dSYM bundle the CLI uploads on macOS (the default,
+# `unpacked`, leaves it scattered across object files); on Linux the executable carries the
+# DWARF itself and it is the GNU build id from .cargo/config.toml that matters.
+[profile.release]
+debug = "line-tables-only"
+split-debuginfo = "packed"

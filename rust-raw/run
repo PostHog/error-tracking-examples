@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Release build, debug symbol upload through the published posthog-cli, then run the binary.
+# The upload has to come from the very build that runs: each build gets its own build id and
+# that is what PostHog matches frames against.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+# Rust often lives outside a GUI-launched shell's PATH: rustup's homebrew formula puts its
+# proxies under /opt/homebrew/opt/rustup/bin, the official installer under ~/.cargo/bin. Appended,
+# so a cargo already on PATH wins; the whole directory, because the cargo proxy execs rustc from
+# next to itself.
+for dir in "$HOME/.cargo/bin" /opt/homebrew/opt/rustup/bin; do
+  [[ -d $dir ]] && PATH="$PATH:$dir"
+done
+if ! command -v cargo >/dev/null; then
+  echo "error: cargo not found — install Rust (https://rustup.rs)" >&2
+  exit 1
+fi
+
+cargo build --release
+
+# --include-source bundles the files the DWARF references, which is what gives the frames source
+# context in the UI (the sourcemap examples get that from sourcesContent). It takes every std and
+# registry file too — ~1250 files, 30 MB — and warns per /rustc/... path that is not on disk.
+posthog-cli --dotenv-file .env symbol-sets upload --directory target/release --include-source
+
+# The SDK takes the key and host from the process environment.
+set -a
+. ./.env
+set +a
+exec target/release/rust-raw

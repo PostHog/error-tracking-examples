@@ -17,7 +17,8 @@
 # over one, so each gets its own applicationId, release and mapping. web-vite-sri3 differs: it reproduces the
 # @posthog/rollup-plugin x vite-plugin-sri3 incompatibility, so its single
 # (Legacy) proc fails the SRI check every time by design.
-# (ios-raw is a Swift app with no package.json, so it has no proc here.)
+# (ios-raw is a Swift app with no package.json, so it has no proc here.) rust-raw is a
+# single (Legacy) proc too: the published CLI's `symbol-sets upload` has no --release-mode.
 #
 # The android-* procs build against a local working copy of posthog-android,
 # published to ~/.m2 on the way, because `posthog.releaseMode` is unreleased;
@@ -146,6 +147,16 @@ procs:
     autostart: false
     groups:
       layer: Releaseless
+
+  # Release build, native debug symbol upload through the published posthog-cli, then the binary
+  # runs and captures one exception. Legacy only: `symbol-sets upload` has no --release-mode in a
+  # published CLI yet.
+  rust-raw:
+    shell: './run'
+    cwd: rust-raw
+    autostart: false
+    groups:
+      layer: Legacy
 
   web-raw:
     shell: 'pnpm install && pnpm start'
