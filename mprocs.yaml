@@ -17,8 +17,10 @@
 # over one, so each gets its own applicationId, release and mapping. web-vite-sri3 differs: it reproduces the
 # @posthog/rollup-plugin x vite-plugin-sri3 incompatibility, so its single
 # (Legacy) proc fails the SRI check every time by design.
-# (ios-raw is a Swift app with no package.json, so it has no proc here.) rust-raw is a
-# single (Legacy) proc too: the published CLI's `symbol-sets upload` has no --release-mode.
+# (ios-raw is a Swift app with no package.json, so it has no proc here.) The rust ones are
+# two separate projects as well, rust-raw and rust-releaseless: they build against different
+# posthog-rs versions (the published crate vs the working copy that carries the release marker),
+# and each gets its own release.
 #
 # The android-* procs build against a local working copy of posthog-android,
 # published to ~/.m2 on the way, because `posthog.releaseMode` is unreleased;
@@ -32,6 +34,11 @@
 # the full iOS builds go through bin/install-posthog-cli-local instead, which symlinks
 # ~/.posthog/posthog-cli at the build, since that is where an Xcode build phase looks
 # first. Both build the CLI on the way, so the first run is slow.
+#
+# rust-releaseless runs the locally built posthog-cli too (`symbol-sets upload --release-mode`
+# is unreleased), through bin/posthog-cli-local, and builds against the working copy of
+# posthog-rs, because the release marker — the placeholder the CLI overwrites with the release
+# id, which the SDK then reports as `$release_id` — has not shipped either.
 
 procs:
   # Named to sort alphabetically before every example: phrocs selects the
@@ -148,15 +155,25 @@ procs:
     groups:
       layer: Releaseless
 
-  # Release build, native debug symbol upload through the published posthog-cli, then the binary
-  # runs and captures one exception. Legacy only: `symbol-sets upload` has no --release-mode in a
-  # published CLI yet.
+  # Release build, native debug symbol upload, then the binary runs and captures one exception.
+  # rust-raw: published posthog-rs and posthog-cli, the symbol set bound to the release.
+  # rust-releaseless: the working copies of both, `--release-mode=event`, the CLI injecting the
+  # release id into the binary for the SDK to report as `$release_id`. `APP_VERSION=2.0.0 ./run` in
+  # either directory ships the same binary again as a second release, which is the case the two
+  # exist to contrast.
   rust-raw:
     shell: './run'
     cwd: rust-raw
     autostart: false
     groups:
       layer: Legacy
+
+  rust-releaseless:
+    shell: './run'
+    cwd: rust-releaseless
+    autostart: false
+    groups:
+      layer: Releaseless
 
   web-raw:
     shell: 'pnpm install && pnpm start'

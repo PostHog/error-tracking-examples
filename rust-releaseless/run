@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Release build, then event-mode symbol upload through the working copy of posthog-cli, which
+# injects the created release's id into the built binary before the binary runs. Pass a version to
+# ship the same code again as a second release: `APP_VERSION=2.0.0 ./run`. The binary is not
+# rebuilt for that — it does not read the version — so it keeps its build id: the symbols come back
+# `already present`, a new release row is created, and the CLI re-injects that new release's id into
+# the same binary, so the exception reports the new release off one unchanged symbol set.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+# Rust often lives outside a GUI-launched shell's PATH: rustup's homebrew formula puts its
+# proxies under /opt/homebrew/opt/rustup/bin, the official installer under ~/.cargo/bin. Appended,
+# so a cargo already on PATH wins; the whole directory, because the cargo proxy execs rustc from
+# next to itself.
+for dir in "$HOME/.cargo/bin" /opt/homebrew/opt/rustup/bin; do
+  [[ -d $dir ]] && PATH="$PATH:$dir"
+done
+if ! command -v cargo >/dev/null; then
+  echo "error: cargo not found — install Rust (https://rustup.rs)" >&2
+  exit 1
+fi
+
+cargo build --release
+
+# The release the upload creates and injects. Its name and version are only the human-readable
+# label now — resolution is by the injected id, not by matching these to anything the app reports —
+# so read them from the same Cargo manifest for a tidy `name@version`. APP_VERSION overrides the
+# version to ship the same binary as a second release.
+read -r APP_NAME CARGO_VERSION < <(cargo metadata --no-deps --format-version 1 |
+  python3 -c 'import json, sys; p = json.load(sys.stdin)["packages"][0]; print(p["name"], p["version"])')
+APP_VERSION=${APP_VERSION:-$CARGO_VERSION}
+
+# --release-mode=event: create the release, inject its id into target/release/rust-releaseless, and
+# upload the symbols release-independent. --include-source bundles the files the DWARF references so
+# the frames get source context in the UI.
+../bin/posthog-cli-local --dotenv-file .env symbol-sets upload --directory target/release \
+  --release-mode=event --release-name "$APP_NAME" --release-version "$APP_VERSION" --include-source
+
+# The SDK takes the key and host from the process environment.
+set -a
+. ./.env
+set +a
+echo "running $APP_NAME as release $APP_NAME@$APP_VERSION"
+exec target/release/rust-releaseless

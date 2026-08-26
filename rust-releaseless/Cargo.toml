@@ -1,0 +1,21 @@
+[package]
+name = "rust-releaseless"
+version = "1.0.0"
+edition = "2021"
+publish = false
+description = "Minimal Rust binary instrumented with PostHog error tracking; posthog-cli injects the release id into the built binary (--release-mode=event) and the SDK reports it as $release_id, so each exception resolves its own release from one release-independent symbol set"
+
+[dependencies]
+# The working copy of posthog-rs, because release-id injection — the `$release_id` the CLI stamps
+# into the binary for the SDK to report — has not shipped in a release yet. The blocking client: no tokio, nothing to await. `error-tracking` is on by default
+# but has to be re-added once default features are off.
+posthog-rs = { path = "../../posthog-rs", default-features = false, features = ["error-tracking"] }
+
+# Cargo strips debug info from release builds, and there is nothing to upload without it.
+# `line-tables-only` is enough for file, line and inlined-frame resolution. `packed` is what
+# turns it into the target/release/rust-releaseless.dSYM bundle the CLI uploads on macOS (the
+# default, `unpacked`, leaves it scattered across object files); on Linux the executable carries
+# the DWARF itself and it is the GNU build id from .cargo/config.toml that matters.
+[profile.release]
+debug = "line-tables-only"
+split-debuginfo = "packed"

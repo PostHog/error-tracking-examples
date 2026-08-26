@@ -105,27 +105,83 @@ build phase looks first. See [react-native-expo/README.md](react-native-expo/REA
 
 ## Rust
 
-`rust-raw` is a plain cargo binary on the published `posthog-rs`, with the published `posthog-cli`
-doing the upload — nothing built locally, so it needs only `@posthog/cli` (0.8.1 or newer, where
-`symbol-sets upload` learned `.dSYM` bundles) and a Rust toolchain. Rust has no source maps: the
-release build keeps its DWARF (`debug = "line-tables-only"` in `Cargo.toml`, split into a `.dSYM`
-on macOS), the CLI uploads it keyed by the binary's Mach-O UUID (GNU build id on Linux), and the
-SDK reports that same id in `$debug_images` next to raw instruction addresses, so the frames are
-symbolicated server-side against the upload.
+`rust-raw` and `rust-releaseless` are the same tiny cargo binary twice, differing only in how the
+release is associated — the rust counterpart of the android and expo pairs. Rust has no source
+maps: the release build keeps its DWARF (`debug = "line-tables-only"` in `Cargo.toml`, split into
+a `.dSYM` on macOS), `posthog-cli symbol-sets upload` uploads it keyed by the binary's Mach-O UUID
+(GNU build id on Linux), and the SDK reports that same id in `$debug_images` next to raw
+instruction addresses, so the frames are symbolicated server-side against the upload.
 
 ```bash
-rust-raw/run    # cargo build --release, symbol-sets upload, run the binary
+rust-raw/run                     # legacy: the symbol set is bound to the release
+rust-releaseless/run             # event mode: symbols upload release-independent
+APP_VERSION=2.0.0 rust-raw/run          # ship the same binary as a second release
+APP_VERSION=2.0.0 rust-releaseless/run  # (the case the two exist to contrast)
+bin/check-rust                   # frames, release and app for both, server-side
 ```
 
-The upload has to come from the very build that runs, since every build gets a new UUID. A rerun
-without code changes is a no-op for cargo and comes back `1 skipped (1 already present)` from the
-upload, which is the healthy signal. The CLI walks all of `target/release`, `deps/` and `build/`
-included, so it also warns once per build script and proc-macro dylib that it found no debug info
-in — noise, not a problem; the line to look for is `Processing dSYM ... (UUIDs: ...)`. `run`
-finds cargo under `~/.cargo/bin` or homebrew's rustup directory when it is not on PATH.
+### How a Rust build reports its release
 
-Legacy only: `symbol-sets upload` has no `--release-mode` in a published CLI yet. The release is
-derived from git the same way the sourcemap examples do it. The upload runs with
-`--include-source`, so the frames get source context in the UI; that bundles every file the DWARF
-references — std and registry sources included, ~1250 files (30 MB) — and warns once per
-`/rustc/...` path that is not on disk (the std sources, unless `rustup component add rust-src`).
+The JS examples inject `$release_id` into the bundle; the mobile ones rely on the `$app_*`
+properties the SDK reads off the running app. A compiled Rust binary has neither, so `posthog-rs`
+compiles a fixed placeholder into it — a 59-byte marker, `~posthog-release-id~v1~` followed by a
+nil UUID — and `posthog-cli symbol-sets upload --release-mode=event` creates the release, then
+overwrites that placeholder in the built binary with the release's id. The SDK reads the marker
+back at runtime and reports it as `$release_id` on every event, the primary key cymbal resolves an
+exception's release from. The debug symbols upload release-independent, with the marker reset to
+its placeholder in the uploaded copy, so an unchanged binary keeps one symbol set across releases.
+Because one id is copied into both the release row and the binary, the release's name and version
+are only labels: nothing the app reports has to match them.
+
+Nothing in `rust-releaseless/src/main.rs` names the release. It only prints what the SDK will
+report, through `injected_release_id()`:
+
+```rust
+match posthog_rs::injected_release_id() {
+    Some(release) => println!("starting — injected release {release}"),
+    None => println!("starting — no release injected (run through ./run)"),
+}
+```
+
+On macOS the overwrite invalidates the binary's ad-hoc code signature, so the CLI re-signs it
+ad-hoc after injecting (`--no-resign` skips that, for pipelines that sign afterwards). On Linux
+nothing is signed, but the marker lives in the same ELF the CLI uploads as the debug symbols,
+which is why the uploaded copy carries the placeholder.
+
+### The two examples
+
+`rust-raw` is the fully-published path: the published `posthog-rs` and the published `@posthog/cli`
+(0.8.1+, where `symbol-sets upload` learned `.dSYM` bundles), nothing built locally. It uploads
+with the symbol set **bound** to the release (`--release-name`/`--release-version` from the crate,
+plus git metadata), the previous behavior. Its binary carries no marker (`posthog-rs` 0.25 predates
+it), so its app metadata is backfilled from the release cymbal resolves through the symbol-set
+binding.
+
+`rust-releaseless` runs the working copy of `posthog-cli` through `bin/posthog-cli-local` (because
+`symbol-sets upload --release-mode` is unreleased) and builds against the working copy of
+`posthog-rs` (because the release marker and `injected_release_id()` are unreleased). Its upload
+is `--release-mode=event`: the symbol set is content-addressed and release-independent, and each
+exception carries its own release in the injected `$release_id`.
+
+Ship the same code again under a new version to see why event mode exists. `APP_VERSION` only
+changes the release the upload creates, so cargo does not rebuild and the build id — hence the
+symbol set — is unchanged:
+
+- `APP_VERSION=2.0.0 rust-raw/run` warns `release_id_mismatch`: the symbol set is already bound to
+  `1.0.0`, so the `2.0.0` exception still reports `rust-raw@1.0.0`.
+- `APP_VERSION=2.0.0 rust-releaseless/run` reports `1 skipped (1 already present)`, mints a new
+  release row, re-injects that release's id into the same binary, and the `2.0.0` exception
+  reports `rust-releaseless@2.0.0` off the same symbol set.
+
+`bin/check-rust` prints the app, the `$release_id`, the resolved release, the debug image ids and
+the symbolicated in-app frames for the most recent occurrence of each — the whole chain end to
+end.
+
+The upload has to come from the very build that runs, since every build gets a new UUID. The CLI
+walks all of `target/release`, `deps/` and `build/` included, so it warns once per build script and
+proc-macro dylib that carries no debug info — noise, not a problem; the line to look for is
+`Processing dSYM ... (UUIDs: ...)`. Both runs use `--include-source`, so the frames get source
+context in the UI; that bundles every file the DWARF references — std and registry sources
+included, ~1250 files (30 MB) — and warns once per `/rustc/...` path that is not on disk (the std
+sources, unless `rustup component add rust-src`). `run` finds cargo under `~/.cargo/bin` or
+homebrew's rustup directory when it is not on PATH.

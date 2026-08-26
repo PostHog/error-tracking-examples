@@ -1,0 +1,4 @@
+# PostHog matches frames to uploaded symbols by build id. Apple's linker always embeds a Mach-O
+# UUID (and rejects this flag); on Linux make sure the GNU build id is there.
+[target.'cfg(target_os = "linux")']
+rustflags = ["-C", "link-arg=-Wl,--build-id=sha1"]

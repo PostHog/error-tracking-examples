@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+"""Report what PostHog made of the exceptions the Rust examples sent.
+
+    bin/check-rust              # both variants
+    bin/check-rust releaseless  # one of them
+
+For each variant it prints the app the event carries, the $release_id the SDK read out of the
+binary (event mode only), the release the server resolved, the debug images the SDK reported (the
+build ids the symbol sets are keyed by), and the in-app frames after symbolication with the source
+context of the deepest one. That is the whole chain the two run scripts exercise:
+
+  - a frame with no resolved name means the debug symbols never landed, or the build id differs
+  - "$release_id: (none ...)" on a releaseless event means the binary was not injected: it ran
+    directly instead of through ./run; "release: none resolved" next to an id means that id
+    matched no release in the project
+  - the same debug image across two releases is the case event mode exists for
+
+Reads credentials from the repo root .env. Uses the local dev login, because the query endpoint
+needs more than the error_tracking scope the stored personal API key carries.
+"""
+
+import json
+import sys
+import urllib.error
+import urllib.request
+from http.cookiejar import CookieJar
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+DEV_EMAIL = "test@posthog.com"
+DEV_PASSWORD = "12345678"
+
+
+def read_env() -> dict:
+    env_file = ROOT / ".env"
+    if not env_file.exists():
+        sys.exit("error: no .env at the repo root — run bin/copy-env first")
+    values = {}
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            values[key.strip()] = value.strip()
+    return values
+
+
+def login(host: str):
+    jar = CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+    opener.cookiejar = jar
+    attempts = (
+        (f"{host}/api/login/dev", {"email": DEV_EMAIL}),
+        (f"{host}/api/login", {"email": DEV_EMAIL, "password": DEV_PASSWORD}),
+    )
+    for url, payload in attempts:
+        request = urllib.request.Request(
+            url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"}
+        )
+        try:
+            opener.open(request, timeout=10)
+            return opener
+        except urllib.error.HTTPError:
+            continue
+    sys.exit(f"error: could not log in to {host} as {DEV_EMAIL} — is the dev stack up?")
+
+
+def post(opener, url: str, payload: dict) -> dict:
+    csrf = next((c.value for c in opener.cookiejar if c.name == "posthog_csrftoken"), "")
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json", "X-CSRFToken": csrf},
+    )
+    with opener.open(request, timeout=60) as response:
+        return json.load(response)
+
+
+def query(opener, host: str, hogql: str) -> list:
+    return post(opener, f"{host}/api/projects/1/query/", {"query": {"kind": "HogQLQuery", "query": hogql}}).get(
+        "results", []
+    )
+
+
+def as_json(value):
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return None
+    return value
+
+
+def frames_of(exception_list) -> list:
+    collected = []
+    for exception in exception_list or []:
+        collected.extend(((exception.get("stacktrace") or {}).get("frames")) or [])
+    return collected
+
+
+def print_context(opener, host: str, frame: dict) -> None:
+    raw_id = frame.get("raw_id")
+    if not raw_id:
+        return
+    results = post(
+        opener,
+        f"{host}/api/projects/1/error_tracking/stack_frames/batch_get/",
+        {"raw_ids": [raw_id]},
+    ).get("results", [])
+    context = (results[0].get("context") if results else None) or {}
+    if not context:
+        print("      (no source context)")
+        return
+    for item in (context.get("before") or [])[-2:]:
+        print(f"      {item['number']:>4}   {item['line']}")
+    current = context.get("line") or {}
+    print(f"      {current.get('number'):>4} > {current.get('line')}")
+    for item in (context.get("after") or [])[:2]:
+        print(f"      {item['number']:>4}   {item['line']}")
+
+
+def main() -> None:
+    wanted = sys.argv[1] if len(sys.argv) > 1 else None
+    env = read_env()
+    host = env.get("POSTHOG_HOST", "http://localhost:8010")
+    opener = login(host)
+
+    rows = query(
+        opener,
+        host,
+        """
+        select
+            properties.$app_namespace,
+            properties.$app_version,
+            properties.$app_build,
+            properties.$release_id,
+            properties.$exception_release,
+            properties.$exception_list,
+            properties.$debug_images,
+            timestamp
+        from events
+        where event = '$exception'
+          and properties.$lib = 'posthog-rs'
+          and timestamp > now() - interval 3 hour
+        order by timestamp desc
+        limit 20
+        """,
+    )
+    if not rows:
+        print("no $exception events from the Rust examples in the last 3 hours")
+        return
+
+    seen = set()
+    for namespace, version, build, release_id, release, exception_list, debug_images, timestamp in rows:
+        # rust-raw's SDK sends no app metadata; whatever it carries was backfilled from the
+        # release, and the release's project is the crate name either way.
+        variant = "releaseless" if str(namespace).endswith("releaseless") else "legacy"
+        if (wanted and variant != wanted) or variant in seen:
+            continue
+        seen.add(variant)
+
+        release = as_json(release)
+        frames = frames_of(as_json(exception_list))
+        app_frames = [f for f in frames if f.get("in_app")]
+
+        print(f"\n  {variant}  ({str(timestamp)[:19]})")
+        app = f"{namespace}@{version}" if namespace else "none"
+        if build not in (None, ""):
+            app += f"+{build}"
+        print(f"    app             : {app}")
+        # The injected $release_id is how event mode carries the release; legacy events have none
+        # and resolve through the symbol-set binding instead.
+        print(f"    $release_id     : {release_id or '(none — resolved via symbol set)'}")
+        if release:
+            print(f"    release         : {release.get('project')}@{release.get('version')}")
+        else:
+            print("    release         : none resolved")
+
+        for image in as_json(debug_images) or []:
+            print(f"    debug image     : {image.get('debug_id')}  {image.get('code_file', '')}")
+
+        print("    frames (in app) :")
+        for frame in app_frames:
+            mark = "✓" if frame.get("resolved") else "✗"
+            print(f"      {mark} {frame.get('source')}:{frame.get('line')} {frame.get('resolved_name')}")
+        if not app_frames:
+            print("      (none resolved into the app)")
+        else:
+            print("    source context of the deepest frame:")
+            print_context(opener, host, app_frames[-1])
+
+
+if __name__ == "__main__":
+    main()

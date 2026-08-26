@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Release build, debug symbol upload through the published posthog-cli, then run the binary.
 # The upload has to come from the very build that runs: each build gets its own build id and
-# that is what PostHog matches frames against.
+# that is what PostHog matches frames against. Pass a version to ship the same code again as a
+# second release: `APP_VERSION=2.0.0 ./run`. Cargo does not rebuild, the build id is unchanged,
+# and the upload reports `release_id_mismatch` — the symbol set is bound to the first release,
+# and that is what the exception keeps reporting.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -19,13 +22,21 @@ fi
 
 cargo build --release
 
+# The release the upload binds the symbol set to, at the same coordinates rust-releaseless uses,
+# so the two examples differ only in the mode.
+read -r APP_NAME CARGO_VERSION < <(cargo metadata --no-deps --format-version 1 |
+  python3 -c 'import json, sys; p = json.load(sys.stdin)["packages"][0]; print(p["name"], p["version"])')
+APP_VERSION=${APP_VERSION:-$CARGO_VERSION}
+
 # --include-source bundles the files the DWARF references, which is what gives the frames source
 # context in the UI (the sourcemap examples get that from sourcesContent). It takes every std and
 # registry file too — ~1250 files, 30 MB — and warns per /rustc/... path that is not on disk.
-posthog-cli --dotenv-file .env symbol-sets upload --directory target/release --include-source
+posthog-cli --dotenv-file .env symbol-sets upload --directory target/release \
+  --release-name "$APP_NAME" --release-version "$APP_VERSION" --include-source
 
 # The SDK takes the key and host from the process environment.
 set -a
 . ./.env
 set +a
+echo "running $APP_NAME as release $APP_NAME@$APP_VERSION"
 exec target/release/rust-raw
