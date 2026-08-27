@@ -1,0 +1,19 @@
+[package]
+name = "rust-release-env"
+version = "1.0.0"
+edition = "2021"
+publish = false
+description = "Minimal Rust binary instrumented with PostHog error tracking; the release id comes from POSTHOG_RELEASE_ID at runtime (posthog-cli release resolve prints it) and the SDK reports it as $release_id — no binary patching, no code signing"
+
+[dependencies]
+# The working copy of posthog-rs, because reading the release id from POSTHOG_RELEASE_ID has not
+# shipped in a release yet. The blocking client: no tokio, nothing to await. `error-tracking` is on
+# by default but has to be re-added once default features are off.
+posthog-rs = { path = "../../posthog-rs", default-features = false, features = ["error-tracking"] }
+
+# Cargo strips debug info from release builds, and there is nothing to upload without it.
+# `line-tables-only` is enough for file, line and inlined-frame resolution. `packed` turns it into
+# the target/release/rust-release-env.dSYM bundle the CLI uploads on macOS.
+[profile.release]
+debug = "line-tables-only"
+split-debuginfo = "packed"

@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Resolve the release with posthog-cli, export its id as POSTHOG_RELEASE_ID, and run the app. The
+# SDK reads POSTHOG_RELEASE_ID at runtime and reports it as $release_id on every event — no binary
+# patching and no code signing, unlike --release-mode=event. Pass a version to ship the same code
+# as a second release: APP_VERSION=2.0.0 ./run.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+# Rust often lives outside a GUI-launched shell's PATH. Appended, so a cargo already on PATH wins.
+for dir in "$HOME/.cargo/bin" /opt/homebrew/opt/rustup/bin; do
+  [[ -d $dir ]] && PATH="$PATH:$dir"
+done
+if ! command -v cargo >/dev/null; then
+  echo "error: cargo not found — install Rust (https://rustup.rs)" >&2
+  exit 1
+fi
+
+cargo build --release
+
+read -r APP_NAME CARGO_VERSION < <(cargo metadata --no-deps --format-version 1 |
+  python3 -c 'import json, sys; p = json.load(sys.stdin)["packages"][0]; print(p["name"], p["version"])')
+APP_VERSION=${APP_VERSION:-$CARGO_VERSION}
+
+# Upload the symbols so native frames symbolicate. `--release-mode=event` uploads them
+# release-independent: no release is bound, so one symbol set serves every release, and the upload
+# needs no --release-name/--release-version. The release rides the event as $release_id instead.
+../bin/posthog-cli-local --dotenv-file .env symbol-sets upload --directory target/release \
+  --include-source --release-mode=event
+
+# Create (or look up) the release and capture its id — the name and version live here, not on the
+# upload. `release resolve` prints only the id.
+RELEASE_ID=$(../bin/posthog-cli-local --dotenv-file .env release resolve \
+  --release-name "$APP_NAME" --release-version "$APP_VERSION")
+
+# The SDK takes the key and host from the process environment, and the release id from
+# POSTHOG_RELEASE_ID.
+set -a
+. ./.env
+set +a
+export POSTHOG_RELEASE_ID=$RELEASE_ID
+echo "running $APP_NAME as release $APP_NAME@$APP_VERSION (POSTHOG_RELEASE_ID=$RELEASE_ID)"
+exec target/release/rust-release-env

@@ -185,3 +185,13 @@ context in the UI; that bundles every file the DWARF references — std and regi
 included, ~1250 files (30 MB) — and warns once per `/rustc/...` path that is not on disk (the std
 sources, unless `rustup component add rust-src`). `run` finds cargo under `~/.cargo/bin` or
 homebrew's rustup directory when it is not on PATH.
+
+## Web
+
+`web-angular-sw` is an Angular 22 app with `@angular/service-worker`, reproducing
+[PostHog/posthog#86046](https://github.com/PostHog/posthog/issues/86046): `ng build` records a
+SHA-1 of every bundle in `ngsw.json`, `posthog-cli sourcemap inject` then rewrites the bundles, and
+the service worker rejects the new version and keeps serving the cached one. `pnpm start` proves
+both halves — `verify:broken` expects the `main-*.js` hash to mismatch after inject, `verify:fixed`
+expects every hash to match after `ngsw-config` regenerates the manifest — and `pnpm test:browser`
+replays the failure and the fix in headless Chrome. See its README for the details.

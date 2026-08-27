@@ -1,0 +1,50 @@
+{
+  "name": "web-angular-sw",
+  "version": "0.0.0",
+  "scripts": {
+    "build": "node bin/stamp-build.mjs && ng build --configuration production",
+    "clean": "rm -rf dist",
+    "inject": "posthog-cli --dotenv-file .env sourcemap inject --directory ./dist/web-angular-sw/browser",
+    "upload": "posthog-cli --dotenv-file .env sourcemap upload --directory ./dist/web-angular-sw/browser",
+    "regen": "ngsw-config ./dist/web-angular-sw/browser ./ngsw-config.json /",
+    "verify:broken": "node verify-ngsw.mjs --expect mismatch",
+    "verify:fixed": "node verify-ngsw.mjs --expect match",
+    "serve": "node serve.mjs",
+    "start": "pnpm clean && pnpm build && pnpm inject && pnpm upload && pnpm verify:broken; pnpm regen && pnpm verify:fixed && pnpm serve",
+    "start:offline": "pnpm clean && pnpm build && pnpm inject && pnpm verify:broken; pnpm regen && pnpm verify:fixed && pnpm serve",
+    "test:browser": "node test-browser.mjs"
+  },
+  "private": true,
+  "packageManager": "pnpm@10.15.1",
+  "dependencies": {
+    "@angular/common": "^22.1.0",
+    "@angular/compiler": "^22.1.0",
+    "@angular/core": "^22.1.0",
+    "@angular/forms": "^22.1.0",
+    "@angular/platform-browser": "^22.1.0",
+    "@angular/router": "^22.1.0",
+    "@angular/service-worker": "^22.1.3",
+    "posthog-js": "^1.420.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^22.1.6",
+    "@angular/cli": "^22.1.6",
+    "@angular/compiler-cli": "^22.1.0",
+    "@posthog/cli": "^0.15.1",
+    "jsdom": "^28.0.0",
+    "playwright-core": "^1.62.1",
+    "prettier": "^3.8.1",
+    "typescript": "~6.0.2",
+    "vitest": "^4.0.8"
+  },
+  "description": "Angular app with the Angular service worker, reproducing PostHog/posthog#86046: `ng build` records a SHA-1 of every bundle in ngsw.json, then `posthog-cli sourcemap inject` rewrites the bundles, so the service worker rejects the new version and keeps serving the cached app. `pnpm start` proves both halves: the hashes mismatch after inject and match again after `ngsw-config` regenerates the manifest.",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@posthog/cli",
+      "esbuild",
+      "@angular/service-worker"
+    ]
+  }
+}

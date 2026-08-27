@@ -3,3 +3,6 @@
 
 # python bytecode from bin/check-expo
 __pycache__/
+
+# Rust build output (rust-raw, rust-releaseless, rust-release-env, …)
+target/
