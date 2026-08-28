@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Shared steps for the two flutter-web examples, which differ only in the
+# release mode their upload runs in. Sourced by flutter-web-*/run.
+#
+#   flutter_web_build <variant> <release-label>   build build/web and fill in index.html
+#   posthog_cli <args...>                         the published CLI, with --dotenv-file .env
+#   flutter_web_serve <variant> <port>            serve build/web and open it
+
+# --pwa-strategy=none is not a detail. `flutter build web` otherwise writes
+# flutter_service_worker.js with an MD5 of every file, taken before
+# `posthog-cli sourcemap inject` rewrites main.dart.js. The service worker does
+# not verify those hashes, so nothing fails; it caches main.dart.js and, on a
+# rebuild whose Dart code did not change, sees an unchanged manifest and keeps
+# serving the copy it already has — the previous build's chunk id and release
+# id, against symbol sets the CLI has since replaced. Turning the service
+# worker off removes a caching variable this example does not exist to test.
+flutter_web_build() {
+  local variant=$1 release_label=$2
+
+  if ! command -v flutter >/dev/null; then
+    echo "error: flutter not found — https://docs.flutter.dev/get-started/install" >&2
+    return 1
+  fi
+
+  flutter pub get
+  flutter build web --source-maps --pwa-strategy=none \
+    --dart-define="POSTHOG_KEY=$(env_value POSTHOG_KEY)" \
+    --dart-define="POSTHOG_HOST=$(env_value POSTHOG_HOST)" \
+    --dart-define="VARIANT=$variant"
+
+  # index.html is not a chunk, so filling it in after the build changes nothing
+  # the CLI reads. Keeping the key, the host and the release label out of the
+  # Dart build is what makes main.dart.js identical across releases.
+  local index=build/web/index.html
+  substitute "$index" __POSTHOG_KEY__ "$(env_value POSTHOG_KEY)"
+  substitute "$index" __POSTHOG_HOST__ "$(env_value POSTHOG_HOST)"
+  substitute "$index" __RELEASE_LABEL__ "$release_label"
+  substitute "$index" __VARIANT__ "$variant"
+}
+
+posthog_cli() {
+  if ! command -v posthog-cli >/dev/null; then
+    echo "error: posthog-cli not found — npm install -g @posthog/cli" >&2
+    return 1
+  fi
+  posthog-cli --dotenv-file .env "$@"
+}
+
+flutter_web_serve() {
+  local variant=$1 port=$2
+  local url="http://localhost:$port"
+
+  # A wildcard listener (a docker published port, say) and a 127.0.0.1 listener
+  # can hold the same port at once, so binding succeeding is not proof the
+  # browser reaches us. Refuse the port when something already answers on it.
+  if curl -s -o /dev/null --max-time 2 "$url"; then
+    echo "error: something already answers on $url — set PORT to a free one" >&2
+    return 1
+  fi
+
+  echo
+  echo "serving $variant at $url"
+  echo "the app throws one uncaught exception two seconds after it loads"
+  echo
+
+  python3 -m http.server "$port" --directory build/web --bind 127.0.0.1 &
+  local server=$!
+  trap 'kill "$server" 2>/dev/null' EXIT
+
+  # Give the server a moment before the browser asks for the page.
+  sleep 1
+  [[ ${POSTHOG_NO_OPEN:-} == 1 ]] || open "$url" 2>/dev/null || true
+  wait "$server"
+}
+
+env_value() {
+  { grep -E "^$1=" .env || true; } | tail -1 | cut -d= -f2-
+}
+
+# sed with a value that may hold slashes or ampersands, so python does the
+# replacement instead of a hand-escaped sed expression.
+substitute() {
+  python3 - "$@" <<'PY'
+import sys
+from pathlib import Path
+
+path, placeholder, value = sys.argv[1], sys.argv[2], sys.argv[3]
+file = Path(path)
+file.write_text(file.read_text().replace(placeholder, value))
+PY
+}

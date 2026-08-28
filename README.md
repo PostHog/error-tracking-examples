@@ -186,6 +186,57 @@ included, ~1250 files (30 MB) — and warns once per `/rustc/...` path that is n
 sources, unless `rustup component add rust-src`). `run` finds cargo under `~/.cargo/bin` or
 homebrew's rustup directory when it is not on PATH.
 
+## Flutter
+
+`flutter-web-legacy` and `flutter-web-releaseless` are the same Flutter web app twice, differing
+only in the release mode their upload runs in. Both build with `flutter build web --source-maps`,
+upload with `posthog-cli sourcemap process`, and serve `build/web` on a static server. The app
+throws one uncaught exception two seconds after the page loads, so a run needs nobody to click
+anything; the button throws another.
+
+```bash
+flutter-web-legacy/run                     # legacy: the symbol set is bound to the release
+flutter-web-releaseless/run                # event mode: symbols upload release-independent
+APP_VERSION=2.0.0 flutter-web-legacy/run          # ship the same code as a second release
+APP_VERSION=2.0.0 flutter-web-releaseless/run     # (the case the two exist to contrast)
+bin/check-flutter                          # release and symbolicated frames for both
+```
+
+Neither one builds anything locally: both use the published `posthog_flutter` and the published
+`posthog-cli`. Flutter web already reports the injected release id, because the plugin hands the
+exception to the posthog-js instance the page started, and posthog-js reads `_posthogReleaseId`
+off the global. Nothing in the Dart code names a release.
+
+### The two examples
+
+`flutter build web` emits one sourcemapped chunk, `main.dart.js`. An app that uses deferred
+loading gets one more per deferred library (`main.dart.js_1.part.js`), and the two modes differ
+the same way for each of them.
+
+Ship the same code again under a new version to see why event mode exists. `APP_VERSION` only
+changes the release the upload creates, and the app reads its release label off the page rather
+than from a `--dart-define`, so the Dart build is unchanged between the two runs:
+
+- `APP_VERSION=2.0.0 flutter-web-legacy/run` reports `1 chunk(s) uploaded`. Legacy mints a fresh
+  random chunk id whenever the release changes, so the second release gets a symbol set of its
+  own holding the same bytes as the first.
+- `APP_VERSION=2.0.0 flutter-web-releaseless/run` reports `1 skipped (1 already present)`. The
+  chunk id comes from the content, so the sourcemap is unchanged and the stored symbol set is
+  reused; the new release's id goes into `main.dart.js`, and the exception reports
+  `flutter-web-releaseless@2.0.0` off that one symbol set.
+
+### Two things that bite
+
+Both `run` scripts pass `--pwa-strategy=none`. `flutter build web` otherwise writes
+`flutter_service_worker.js` holding an MD5 of every file, taken before `posthog-cli sourcemap
+inject` rewrites `main.dart.js`. Nothing fails — the service worker never verifies those hashes —
+but it caches `main.dart.js`, and on a rebuild whose Dart code did not change it sees an unchanged
+manifest and keeps serving the copy it already has. The page then reports the previous build's
+chunk id and release id against symbol sets the CLI has replaced.
+
+`flutter build web --source-maps` writes no `sourcesContent`. Frames read back with their Dart
+names and file positions, but the UI has no source lines to show under them.
+
 ## Web
 
 `web-angular-sw` is an Angular 22 app with `@angular/service-worker`, reproducing

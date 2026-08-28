@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Release build of the Flutter web app, then the event-mode upload: the CLI
+# creates the release, injects its id into main.dart.js as `_posthogReleaseId`,
+# and uploads the symbol set release-independent under a content-addressed chunk
+# id. posthog-js reads the injected id and reports it as `$release_id`, so the
+# server resolves the release per event. Pass a version to ship the same code
+# again as a second release: `APP_VERSION=2.0.0 ./run` — the case this example
+# and flutter-web-legacy exist to contrast.
+set -euo pipefail
+cd "$(dirname "$0")"
+. ../bin/flutter-web-lib
+
+VARIANT=flutter-web-releaseless
+APP_VERSION=${APP_VERSION:-1.0.0}
+PORT=${PORT:-7802}
+
+flutter_web_build "$VARIANT" "$VARIANT@$APP_VERSION"
+posthog_cli sourcemap process --directory build/web --release-mode=event \
+  --release-name "$VARIANT" --release-version "$APP_VERSION"
+flutter_web_serve "$VARIANT" "$PORT"

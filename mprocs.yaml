@@ -37,6 +37,12 @@
 # ~/.posthog/posthog-cli at the build, since that is where an Xcode build phase looks
 # first. Both build the CLI on the way, so the first run is slow.
 #
+# The flutter-web procs need no local build of anything: the released
+# posthog_flutter already reports the injected release id, because on web it
+# hands the exception to posthog-js, which reads it. They do need flutter on
+# PATH, and the published posthog-cli (0.13.0 or newer, where `sourcemap
+# inject --release-mode` landed).
+#
 # rust-releaseless runs the locally built posthog-cli too (`symbol-sets upload --release-mode`
 # is unreleased), through bin/posthog-cli-local, and builds against the working copy of
 # posthog-rs, because the release marker — the placeholder the CLI overwrites with the release
@@ -63,6 +69,25 @@ procs:
   android-releaseless:
     shell: './run'
     cwd: android-releaseless
+    autostart: false
+    groups:
+      layer: Releaseless
+
+  # Release build of a Flutter web app, then the sourcemap upload, then a static
+  # server on 7801/7802. The app throws one uncaught exception two seconds after
+  # the page loads, so a run needs nobody to click anything. `APP_VERSION=2.0.0
+  # ./run` in either directory ships the same code again as a second release,
+  # which is the case the two exist to contrast.
+  flutter-web-legacy:
+    shell: './run'
+    cwd: flutter-web-legacy
+    autostart: false
+    groups:
+      layer: Legacy
+
+  flutter-web-releaseless:
+    shell: './run'
+    cwd: flutter-web-releaseless
     autostart: false
     groups:
       layer: Releaseless
