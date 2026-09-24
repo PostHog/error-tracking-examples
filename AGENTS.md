@@ -1,7 +1,8 @@
 # AGENTS.md
 
 This repo is a lab of minimal apps. Each one exercises PostHog error tracking end to end, against a
-local PostHog, for one SDK/tooling combination: it builds, uploads its symbols (source maps,
+local PostHog (or, once [switched](#switching-between-local-and-prod), a PostHog cloud project),
+for one SDK/tooling combination: it builds, uploads its symbols (source maps,
 mappings, dSYMs), runs, captures an exception, and exits. The examples reproduce bugs, prove fixes
 and show how the release modes differ, so a person or an agent should be able to run any of them
 with one command and read the result.
@@ -15,14 +16,17 @@ where their configuration comes from, and how to add one.
 
 ## Before running anything
 
-1. **A local PostHog must be up at `http://localhost:8010`.** It runs from the sibling `../posthog`
-   checkout, not from this repo. Check it with
+1. **Know which PostHog you are on:** `grep ENV_PROFILE .env` prints `local` or `prod`. Stay on
+   the one you find unless the task says otherwise. See
+   [Switching between local and prod](#switching-between-local-and-prod).
+2. **On `local`, a local PostHog must be up at `http://localhost:8010`.** It runs from the sibling
+   `../posthog` checkout, not from this repo. Check it with
    `curl -s -o /dev/null -w '%{http_code}' http://localhost:8010/_health`; anything but `200` means
-   uploads and captures will fail. If it is down, say so. Don't work around it, and don't report an
-   example as working.
-2. **Sync credentials:** `bin/copy-env`. It is idempotent and cheap. mprocs runs it on every
-   launch, but you are not running mprocs, so run it yourself.
-3. **Check the example's toolchain** (pnpm, cargo, flutter, uv, ruby, composer, Android SDK, Xcode)
+   uploads and captures will fail. If it is down, say so. Don't work around it (switching to prod
+   is not a workaround), and don't report an example as working.
+3. **Sync credentials:** `bin/copy-env`. It is idempotent and cheap, and it keeps the active
+   profile. mprocs runs it on every launch, but you are not running mprocs, so run it yourself.
+4. **Check the example's toolchain** (pnpm, cargo, flutter, uv, ruby, composer, Android SDK, Xcode)
    and any sibling checkout it builds from (see the index). Most `run` scripts fail early with an
    install hint when something is missing.
 
@@ -63,43 +67,90 @@ present)`, `release_id_mismatch`. To see what PostHog made of the exception:
 - `bin/check-expo`, `bin/check-flutter` and `bin/check-rust` print the release each variant
   resolved to and its symbolicated in-app frames. `nuxt-spa` runs its own check as part of
   `pnpm start`.
-- For anything else, query the events the way those scripts do: log in as the seeded dev user
-  (`POST /api/login/dev`) and send HogQL to `/api/projects/1/query/`. The personal API key in
-  `.env` is scoped to error tracking and cannot query. Copy a `bin/check-*` script when a new
-  example deserves one.
-- The UI is at `http://localhost:8010/project/1/error_tracking`.
+  They read the root `.env`, so they check whichever profile is active.
+- For anything else, query the events the way those scripts do: send HogQL to
+  `$POSTHOG_CLI_HOST/api/projects/$POSTHOG_CLI_ENV_ID/query/`. On `local`, log in as the seeded
+  dev user (`POST /api/login/dev`) first, because the local personal API key is scoped to error
+  tracking and cannot query. On `prod`, send the key as `Authorization: Bearer $POSTHOG_CLI_TOKEN`.
+  Copy a `bin/check-*` script when a new example deserves one.
+- The UI is at `http://localhost:8010/project/1/error_tracking` on `local`, and at
+  `https://us.posthog.com/project/<POSTHOG_CLI_ENV_ID>/error_tracking` (or `eu.`) on `prod`.
 
 A frame that still shows a minified or bundle path means the symbols never landed or the chunk id
 differs.
 
 ## Configuration: where env values come from
 
-The **root `.env` is the only source.** It is gitignored. `bin/copy-env`:
+Credentials live in two gitignored **profiles** at the repo root:
 
-1. Bootstraps it for project 1 when it is missing.
-2. Validates it against the local PostHog and repairs it. A dead personal API key is replaced: the
-   script logs in as `test@posthog.com` and mints a new key labeled `error-tracking-examples` with
+- **`.env.local`**: the local PostHog, project 1. `bin/copy-env` creates and repairs it.
+- **`.env.prod`**: a PostHog cloud project. A human fills it in. `bin/use-prod` writes the
+  template the first time, and after that scripts read it but never write it.
+
+The **root `.env` is generated** from the active profile, and it is the only file anything else
+reads. `bin/copy-env`:
+
+1. Picks the profile: its argument (`local` or `prod`), else the `ENV_PROFILE` line of the current
+   root `.env`, else `local`.
+2. On `local`, bootstraps `.env.local` for project 1 when it is missing, then validates it against
+   the local PostHog and repairs it. A dead personal API key is replaced: the script logs in as
+   `test@posthog.com` and mints a new key labeled `error-tracking-examples` with
    `error_tracking:read`/`write` scopes. `POSTHOG_KEY` is reset to project 1's token.
-3. Copies it to `<example>/.env` in **every top-level directory except `bin/`**, overwriting what
+   On `prod`, it refuses empty values, a revoked key, and a `POSTHOG_KEY` from another project,
+   and warns when the key cannot query.
+3. Writes the root `.env`: `ENV_PROFILE=<profile>` followed by the profile's values.
+4. Copies it to `<example>/.env` in **every top-level directory except `bin/`**, overwriting what
    is there.
 
-So **never edit an example's `.env`**, because the next sync replaces it. Change the root `.env`,
-or the template in `bin/copy-env` when a variable should exist for everyone.
+When a check stops it, nothing changes: the root `.env` and every copy stay on the profile they
+were on. So **never edit the root `.env` or an example's `.env`**, because the next sync replaces
+them. Change `.env.local` or `.env.prod`, or the templates in `bin/copy-env` when a variable should
+exist for everyone.
 
 | Variable | What it is | Used by |
 | --- | --- | --- |
-| `POSTHOG_HOST` | `http://localhost:8010` | SDKs at runtime |
-| `POSTHOG_KEY` | project 1's public token | SDKs at runtime |
-| `POSTHOG_CLI_HOST`, `POSTHOG_CLI_ENV_ID`, `POSTHOG_CLI_TOKEN` | host, project id, personal API key | `posthog-cli --dotenv-file .env` |
-| `POSTHOG_API_KEY`, `POSTHOG_PROJECT_ID` | the same key and project, under the names the bundler plugins read | rollup/webpack/next/nuxt plugins |
+| `ENV_PROFILE` | `local` or `prod`, the profile the root `.env` was generated from | `bin/copy-env`, the check scripts (to pick how they authenticate) |
+| `POSTHOG_HOST` | `http://localhost:8010`, or on prod the ingestion host (`https://us.i.posthog.com`) | SDKs at runtime, bundler plugins |
+| `POSTHOG_KEY` | the project's public token | SDKs at runtime |
+| `POSTHOG_CLI_HOST`, `POSTHOG_CLI_ENV_ID`, `POSTHOG_CLI_TOKEN` | host (on prod the app host, `https://us.posthog.com`), project id, personal API key | `posthog-cli --dotenv-file .env`, the check scripts |
+| `POSTHOG_API_KEY`, `POSTHOG_PROJECT_ID` | the same key and project, under the names the bundler plugins read (left empty in `.env.prod`, they are filled from the two above) | rollup/webpack/next/nuxt plugins |
 
 How each toolchain reads its copy: `node --env-file=.env`, `posthog-cli --dotenv-file .env`,
 `dotenv` in bundler configs, Next and Nuxt load it themselves, `run` scripts `set -a; . ./.env; set +a`
 before exec, Android via the `posthog.dotenvFile` gradle property, Flutter via `--dart-define`,
 Expo by re-exporting as `EXPO_PUBLIC_*`.
 
-Never hardcode or commit a key. The older `web-raw`, `web-vite-sri3` and `ios-raw` inline the
-token `e2e_token_1239` instead of reading `.env`. Don't copy that into a new example.
+Never hardcode or commit a key. The older `web-raw`, `web-vite-sri3`, `web-angular-sw` and
+`ios-raw` inline the host `http://localhost:8010` and the token `e2e_token_1239` instead of reading
+`.env`, which is why they ignore the profile switch. Don't copy that into a new example.
+
+### Switching between local and prod
+
+```bash
+bin/use-prod           # every example now uploads to and captures into the project in .env.prod
+bin/use-local          # back to the local PostHog
+grep ENV_PROFILE .env  # which one is active
+```
+
+Both are `bin/copy-env <profile>`, so they check the profile and sync it into every example as
+described above. mprocs has the same two as `env-use-local` and `env-use-prod`, and its launch-time
+`env-setup` keeps whichever profile is active. No example knows about profiles: each one reads its
+own `.env`, so the switch applies the next time you build or start it.
+
+- **Only switch to prod when the user asks.** It is a real cloud project, and everything you run
+  lands in it: releases, symbol sets, exceptions. If you switched for a task, switch back with
+  `bin/use-local` when you are done, unless you were told to stay.
+- **Rebuild and restart after switching.** A server that is already up keeps the old values, and
+  the Android and Expo builds bake the host and key into the app.
+- **`.env.prod` needs a human.** It holds the ingestion host, the project token, the app host, the
+  project id and a personal API key with `error_tracking:write` (uploads and releases),
+  `query:read` (the check scripts) and `project:read` (lets `bin/copy-env` confirm `POSTHOG_KEY`).
+  If it is missing or empty, `bin/use-prod` says which values are missing and changes nothing.
+  Ask the user to fill it in. Don't invent values, and don't copy local ones into it.
+- **Some examples ignore the switch.** `web-raw`, `web-vite-sri3` and `web-angular-sw` always
+  capture into the local PostHog, even though their symbol uploads follow the profile. On prod,
+  their exceptions and symbols therefore land in different instances. `ios-raw` is local only, and
+  `web-webpack-sml` uses no credentials at all.
 
 ## Index
 
@@ -205,8 +256,9 @@ only when the framework is what is being tested.
 ### Wire it in
 
 1. **`.gitignore`:** `.env`, dependencies, build output, logs.
-2. **Credentials:** read `POSTHOG_*` from `.env`, and nothing else. `bin/copy-env` syncs every
-   top-level directory, so there is nothing to register.
+2. **Credentials:** read `POSTHOG_*` from `.env`, and nothing else, so the example follows the
+   local/prod switch. `bin/copy-env` syncs every top-level directory, so there is nothing to
+   register.
 3. **`mprocs.yaml`:** a proc with `autostart: false` in the group for its mode (`Legacy`,
    `Releaseless`, `Release env`; repros go under `Legacy`), with a short comment when the command
    needs one.

@@ -1,31 +1,43 @@
 #!/usr/bin/env bash
-# Validate the credentials in the root .env against the local PostHog instance
-# (repairing them where possible), then sync the root .env into every example
-# (every top-level dir but bin/), so a new example gets one without registering
-# anywhere.
-# Run automatically by the env-setup proc in mprocs.yaml; safe to run by hand.
+# Build the root .env from one of two credential profiles, then sync it into
+# every example (every top-level dir but bin/), so a new example gets one
+# without registering anywhere. No example knows which profile it runs on.
 #
-# Checks (skipped with a warning when the instance is down):
+#   bin/copy-env         # re-sync the active profile (what env-setup in mprocs.yaml runs)
+#   bin/use-local        # = bin/copy-env local: the local PostHog, from .env.local
+#   bin/use-prod         # = bin/copy-env prod: a PostHog cloud project, from .env.prod
+#
+# Both profiles are gitignored files at the repo root. The root .env is
+# generated from the active one and names it in ENV_PROFILE, which is how a
+# bare run knows what to re-sync. Edit the profile, never the root .env.
+#
+# local (.env.local) is the dev stack at http://localhost:8010, and the only
+# profile this script repairs (skipped with a warning when the stack is down):
 #   - POSTHOG_CLI_TOKEN / POSTHOG_API_KEY (personal API key): verified via
 #     GET /api/users/@me. 401 means the key is dead; then we log in as the
 #     seeded dev user (passwordless POST /api/login/dev, password login as
 #     fallback), mint a new key scoped to error tracking via
-#     POST /api/personal_api_keys, and write it back to the root .env.
+#     POST /api/personal_api_keys, and write it back to .env.local.
 #   - POSTHOG_KEY (project's public token): compared against the api_token
 #     reported by GET /api/projects/<id> and rewritten on mismatch.
+# A missing .env.local is bootstrapped for project/team 1, and a root .env from
+# before profiles existed becomes .env.local, credentials and all.
 #
-# A missing root .env is bootstrapped from scratch for project/team 1: a
-# template is written and the checks above fill in the credentials. The sync
-# is skipped (with a non-zero exit) only when the .env still has empty
-# credentials afterwards — never clobber the child .envs with blanks.
+# prod (.env.prod) points at an instance with no dev user to log in as, so it
+# is checked but never rewritten. A missing one is written out as a template to
+# fill in. Empty credentials, a dead key, or a POSTHOG_KEY from
+# another project stop the switch. A key that cannot query only warns, because
+# it breaks the bin/check-* scripts and nothing else.
 #
-# Any other check that cannot be repaired warns but does not block the sync —
-# same philosophy as posthog's bin/ensure-local-setup.
+# Whatever stops a sync leaves the root .env and the children on the profile
+# they were on — never clobber the child .envs with blanks. A check that cannot
+# run (instance down) warns but does not block the sync — same philosophy as
+# posthog's bin/ensure-local-setup.
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
 
-HOST='http://localhost:8010'
+LOCAL_HOST='http://localhost:8010'
 ENV_FILE='.env'
 KEY_LABEL='error-tracking-examples'
 DEV_EMAIL='test@posthog.com' # seeded local-dev user
@@ -35,19 +47,47 @@ COOKIE_JAR=''
 CSRF=''
 trap '[[ -n "$COOKIE_JAR" ]] && rm -f "$COOKIE_JAR"' EXIT
 
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "no $ENV_FILE at repo root — creating one for project 1"
-  cat >"$ENV_FILE" <<EOF
-# Global env for all example apps. Edit values HERE only — bin/copy-env
-# (run automatically by the env-setup proc in mprocs.yaml) overwrites each
-# child project's .env with this file on every launch.
+env_get() { { grep -E "^$2=" "$1" || true; } | tail -1 | cut -d= -f2-; }
+
+env_set() {
+  if grep -qE "^$2=" "$1"; then
+    sed -i '' "s|^$2=.*|$2=$3|" "$1"
+  else
+    printf '%s=%s\n' "$2" "$3" >>"$1"
+  fi
+}
+
+# --- which profile ------------------------------------------------------------
+
+ACTIVE=''
+[[ -f $ENV_FILE ]] && ACTIVE=$(env_get "$ENV_FILE" ENV_PROFILE)
+PROFILE=${1:-${ACTIVE:-local}}
+if [[ $PROFILE != local && $PROFILE != prod ]]; then
+  echo "usage: bin/copy-env [local|prod]   (or bin/use-local, bin/use-prod; active: ${ACTIVE:-none})" >&2
+  [[ $PROFILE == -h || $PROFILE == --help ]] && exit 0
+  exit 2
+fi
+PROFILE_FILE=".env.$PROFILE"
+
+stop() {
+  echo "error: $1" >&2
+  echo "the root .env and the examples' copies are unchanged${ACTIVE:+ (still profile '$ACTIVE')}" >&2
+  exit 1
+}
+
+write_local_template() {
+  cat >"$1" <<EOF
+# Credentials for the local PostHog (the dev stack in ../posthog). Switch to
+# them with bin/use-local. While this is the active profile, bin/copy-env
+# repairs this file and generates the root .env from it. Edit values here,
+# never in the root .env.
 
 # SDK capture at runtime — the project's public token
-POSTHOG_HOST=$HOST
+POSTHOG_HOST=$LOCAL_HOST
 POSTHOG_KEY=
 
 # posthog-cli uploads (--dotenv-file .env) — a personal API key
-POSTHOG_CLI_HOST=$HOST
+POSTHOG_CLI_HOST=$LOCAL_HOST
 POSTHOG_CLI_ENV_ID=1
 POSTHOG_CLI_TOKEN=
 
@@ -55,17 +95,59 @@ POSTHOG_CLI_TOKEN=
 POSTHOG_API_KEY=
 POSTHOG_PROJECT_ID=1
 EOF
+}
+
+write_prod_template() {
+  cat >"$1" <<'EOF'
+# Credentials for a PostHog cloud project. Fill in the empty values, then
+# switch to them with bin/use-prod (and back with bin/use-local).
+# bin/copy-env checks this file but never rewrites it.
+
+# SDK capture at runtime: the ingestion host (https://us.i.posthog.com or
+# https://eu.i.posthog.com) and the project token (phc_…) from the project's
+# settings.
+POSTHOG_HOST=https://us.i.posthog.com
+POSTHOG_KEY=
+
+# posthog-cli uploads (--dotenv-file .env): the app host (https://us.posthog.com
+# or https://eu.posthog.com), the project id from the URL (/project/<id>), and a
+# personal API key (Account settings → Personal API keys) with these scopes:
+#   error_tracking:write   symbol set uploads and releases
+#   query:read             bin/check-* and nuxt-spa's check (HogQL)
+#   project:read           lets bin/copy-env confirm POSTHOG_KEY is this project's
+POSTHOG_CLI_HOST=https://us.posthog.com
+POSTHOG_CLI_ENV_ID=
+POSTHOG_CLI_TOKEN=
+
+# bundler plugin uploads: the same key and project under the plugins' names.
+# Left empty, they are filled from POSTHOG_CLI_TOKEN / POSTHOG_CLI_ENV_ID.
+POSTHOG_API_KEY=
+POSTHOG_PROJECT_ID=
+EOF
+}
+
+# Before profiles, the root .env was the hand-edited local credentials. Carry
+# its values into .env.local instead of bootstrapping over them. A generated
+# .env always names its profile, a hand-edited one never does.
+if [[ ! -f .env.local && -f $ENV_FILE && -z $ACTIVE ]]; then
+  write_local_template .env.local
+  while IFS='=' read -r key value; do
+    env_set .env.local "$key" "$value"
+  done < <(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$ENV_FILE")
+  echo "moved the credentials in the root .env to .env.local — edit them there from now on"
 fi
 
-env_get() { { grep -E "^$1=" "$ENV_FILE" || true; } | tail -1 | cut -d= -f2-; }
-
-env_set() {
-  if grep -qE "^$1=" "$ENV_FILE"; then
-    sed -i '' "s|^$1=.*|$1=$2|" "$ENV_FILE"
+if [[ ! -f $PROFILE_FILE ]]; then
+  if [[ $PROFILE == local ]]; then
+    echo "no $PROFILE_FILE — creating one for project 1"
+    write_local_template "$PROFILE_FILE"
   else
-    printf '%s=%s\n' "$1" "$2" >>"$ENV_FILE"
+    write_prod_template "$PROFILE_FILE"
+    stop "no $PROFILE_FILE — wrote a template; fill it in, then run bin/use-$PROFILE"
   fi
-}
+fi
+
+# --- local: validate and repair -------------------------------------------------
 
 # Prints the HTTP status (000 when unreachable), never fails.
 http_status() { curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$@" || true; }
@@ -82,10 +164,10 @@ ensure_session() {
   # /api/login/dev is the passwordless local login (DEBUG + ALLOW_DEV_LOGIN);
   # it 404s when disabled, then plain password login is the fallback.
   status=$(http_status -c "$jar" -H 'Content-Type: application/json' \
-    -d "{\"email\":\"$DEV_EMAIL\"}" "$HOST/api/login/dev")
+    -d "{\"email\":\"$DEV_EMAIL\"}" "$LOCAL_HOST/api/login/dev")
   if [[ $status != 2?? ]]; then
     status=$(http_status -c "$jar" -H 'Content-Type: application/json' \
-      -d "{\"email\":\"$DEV_EMAIL\",\"password\":\"$DEV_PASSWORD\"}" "$HOST/api/login")
+      -d "{\"email\":\"$DEV_EMAIL\",\"password\":\"$DEV_PASSWORD\"}" "$LOCAL_HOST/api/login")
   fi
   if [[ $status != 2?? ]]; then
     echo "warning: could not log in as $DEV_EMAIL (HTTP $status)" >&2
@@ -98,44 +180,45 @@ ensure_session() {
 
 session_curl() { curl -s --max-time 10 -b "$COOKIE_JAR" -H "X-CSRFToken: $CSRF" "$@"; }
 
-check_credentials() {
-  if [[ $(http_status "$HOST/_health") == 000 ]]; then
-    echo "warning: PostHog not reachable at $HOST — skipping credential checks" >&2
+repair_local() {
+  local file=$PROFILE_FILE
+  if [[ $(http_status "$LOCAL_HOST/_health") == 000 ]]; then
+    echo "warning: PostHog not reachable at $LOCAL_HOST — skipping credential checks" >&2
     return
   fi
 
   local project_id token status resp canonical
-  project_id=$(env_get POSTHOG_CLI_ENV_ID)
+  project_id=$(env_get "$file" POSTHOG_CLI_ENV_ID)
   project_id=${project_id:-1}
 
   # --- personal API key (POSTHOG_CLI_TOKEN / POSTHOG_API_KEY) ---------------
-  token=$(env_get POSTHOG_CLI_TOKEN)
-  status=$(http_status -H "Authorization: Bearer $token" "$HOST/api/users/@me")
+  token=$(env_get "$file" POSTHOG_CLI_TOKEN)
+  status=$(http_status -H "Authorization: Bearer $token" "$LOCAL_HOST/api/users/@me")
   if [[ $status == 401 || -z $token ]]; then
     echo 'personal API key is dead — minting a fresh one'
     if ensure_session; then
       # Drop previous keys with our label first, so reruns never hit the
       # 10-keys-per-user cap.
-      session_curl "$HOST/api/personal_api_keys" | python3 -c '
+      session_curl "$LOCAL_HOST/api/personal_api_keys" | python3 -c '
 import json, sys
 data = json.load(sys.stdin)
 for item in (data.get("results", []) if isinstance(data, dict) else data):
     if item.get("label") == sys.argv[1]:
         print(item["id"])
 ' "$KEY_LABEL" 2>/dev/null | while read -r id; do
-        session_curl -o /dev/null -X DELETE "$HOST/api/personal_api_keys/$id"
+        session_curl -o /dev/null -X DELETE "$LOCAL_HOST/api/personal_api_keys/$id"
       done
 
       resp=$(session_curl -H 'Content-Type: application/json' \
         -d "{\"label\":\"$KEY_LABEL\",\"scopes\":[\"error_tracking:read\",\"error_tracking:write\"],\"scoped_teams\":[],\"scoped_organizations\":[]}" \
-        "$HOST/api/personal_api_keys")
+        "$LOCAL_HOST/api/personal_api_keys")
       token=$(printf '%s' "$resp" | json_field value)
       if [[ -n $token ]]; then
-        env_set POSTHOG_CLI_TOKEN "$token"
-        echo "stored new personal API key (error_tracking scope) in $ENV_FILE"
+        env_set "$file" POSTHOG_CLI_TOKEN "$token"
+        echo "stored new personal API key (error_tracking scope) in $file"
       else
         echo "warning: key creation failed: $resp" >&2
-        token=$(env_get POSTHOG_CLI_TOKEN)
+        token=$(env_get "$file" POSTHOG_CLI_TOKEN)
       fi
     fi
   else
@@ -143,32 +226,102 @@ for item in (data.get("results", []) if isinstance(data, dict) else data):
     echo "personal API key OK (HTTP $status)"
   fi
   # POSTHOG_API_KEY (rollup plugin) is the same credential under another name.
-  [[ $(env_get POSTHOG_API_KEY) == "$token" ]] || env_set POSTHOG_API_KEY "$token"
+  [[ $(env_get "$file" POSTHOG_API_KEY) == "$token" ]] || env_set "$file" POSTHOG_API_KEY "$token"
 
   # --- project public token (POSTHOG_KEY) -----------------------------------
   # An error_tracking-scoped key cannot read /api/projects, so fall back to a
   # logged-in session to fetch the canonical token.
   canonical=$(curl -s --max-time 5 -H "Authorization: Bearer $token" \
-    "$HOST/api/projects/$project_id" | json_field api_token)
+    "$LOCAL_HOST/api/projects/$project_id" | json_field api_token)
   if [[ -z $canonical ]] && ensure_session; then
-    canonical=$(session_curl "$HOST/api/projects/$project_id" | json_field api_token)
+    canonical=$(session_curl "$LOCAL_HOST/api/projects/$project_id" | json_field api_token)
   fi
   if [[ -z $canonical ]]; then
     echo "warning: could not read project $project_id's token — POSTHOG_KEY left as is" >&2
-  elif [[ $canonical != $(env_get POSTHOG_KEY) ]]; then
-    env_set POSTHOG_KEY "$canonical"
+  elif [[ $canonical != $(env_get "$file" POSTHOG_KEY) ]]; then
+    env_set "$file" POSTHOG_KEY "$canonical"
     echo "POSTHOG_KEY was stale — updated to project $project_id's token"
   else
     echo "POSTHOG_KEY OK (matches project $project_id)"
   fi
 }
 
-check_credentials
+# --- prod: verify only ------------------------------------------------------------
 
-if [[ -z $(env_get POSTHOG_CLI_TOKEN) || -z $(env_get POSTHOG_KEY) ]]; then
-  echo "warning: $ENV_FILE still has empty credentials — not syncing to child projects" >&2
-  exit 1
+verify_remote() {
+  local host project_id token resp status canonical
+  host=$(env_get "$PROFILE_FILE" POSTHOG_CLI_HOST)
+  host=${host%/}
+  project_id=$(env_get "$PROFILE_FILE" POSTHOG_CLI_ENV_ID)
+  token=$(env_get "$PROFILE_FILE" POSTHOG_CLI_TOKEN)
+
+  resp=$(curl -s --max-time 10 -w '\n%{http_code}' -H "Authorization: Bearer $token" \
+    "$host/api/projects/$project_id/" || true)
+  status=${resp##*$'\n'}
+  case $status in
+    000 | '')
+      echo "warning: $host not reachable — skipping credential checks" >&2
+      return
+      ;;
+    401) stop "the personal API key in $PROFILE_FILE is invalid or revoked (HTTP 401 from $host)" ;;
+    404) stop "project $project_id not found on $host, or the key in $PROFILE_FILE is not scoped to it" ;;
+    403) echo "warning: the key has no project:read scope — POSTHOG_KEY not verified" >&2 ;;
+    200)
+      canonical=$(printf '%s' "${resp%$'\n'*}" | json_field api_token)
+      if [[ -n $canonical && $canonical != $(env_get "$PROFILE_FILE" POSTHOG_KEY) ]]; then
+        stop "POSTHOG_KEY in $PROFILE_FILE is not project $project_id's token ($canonical) — events and symbols would land in different projects"
+      fi
+      echo "personal API key OK, POSTHOG_KEY OK (matches project $project_id)"
+      ;;
+    *) echo "warning: GET $host/api/projects/$project_id/ returned HTTP $status — credentials not verified" >&2 ;;
+  esac
+
+  # The probe reads events, as the check scripts do. A query that reads no
+  # table (`select 1`) runs untagged, which a DEBUG stack rejects with a 500
+  # (UntaggedQueryError) even though the key may query. The longer timeout is
+  # for a cold cloud query.
+  status=$(http_status --max-time 20-H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
+    -d '{"query":{"kind":"HogQLQuery","query":"select count() from events where timestamp > now() - interval 1 minute"}}' \
+    "$host/api/projects/$project_id/query/")
+  if [[ $status == 2?? ]]; then
+    echo 'personal API key can query'
+  else
+    echo "warning: the key cannot query (HTTP $status) — bin/check-* need query:read" >&2
+  fi
+}
+
+missing_credentials() {
+  local key missing=''
+  for key in POSTHOG_HOST POSTHOG_KEY POSTHOG_CLI_HOST POSTHOG_CLI_ENV_ID POSTHOG_CLI_TOKEN; do
+    [[ -n $(env_get "$PROFILE_FILE" "$key") ]] || missing+=" $key"
+  done
+  printf '%s' "$missing"
+}
+
+if [[ $PROFILE == local ]]; then
+  repair_local
+  [[ -z $(missing_credentials) ]] || stop "$PROFILE_FILE still has empty credentials:$(missing_credentials)"
+else
+  [[ -z $(missing_credentials) ]] || stop "fill in $PROFILE_FILE first — empty:$(missing_credentials)"
+  verify_remote
 fi
+
+# --- generate and sync ----------------------------------------------------------
+
+{
+  cat <<EOF
+# Generated by bin/copy-env from $PROFILE_FILE — edits here are lost on the next
+# sync. Edit $PROFILE_FILE instead, and switch with bin/use-local / bin/use-prod.
+ENV_PROFILE=$PROFILE
+
+EOF
+  # Minus the profile's own header, which speaks for the profile file.
+  awk 'NR == 1 && /^#/ { header = 1 } header && /^$/ { header = 0; next } !header' "$PROFILE_FILE"
+} >"$ENV_FILE"
+[[ -n $(env_get "$ENV_FILE" POSTHOG_API_KEY) ]] ||
+  env_set "$ENV_FILE" POSTHOG_API_KEY "$(env_get "$ENV_FILE" POSTHOG_CLI_TOKEN)"
+[[ -n $(env_get "$ENV_FILE" POSTHOG_PROJECT_ID) ]] ||
+  env_set "$ENV_FILE" POSTHOG_PROJECT_ID "$(env_get "$ENV_FILE" POSTHOG_CLI_ENV_ID)"
 
 # Every example reads its own copy: node/web load it directly or through
 # posthog-cli --dotenv-file, the android ones hand it to posthog-cli via the
@@ -182,4 +335,4 @@ for dir in */; do
   echo "synced .env -> ${dir}.env"
 done
 
-echo 'Env sync complete'
+echo "Env sync complete — profile '$PROFILE' ($(env_get "$ENV_FILE" POSTHOG_HOST))"

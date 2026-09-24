@@ -25,6 +25,12 @@ grouped by how the release is associated with exceptions:
 A few examples reproduce a specific bug rather than a flow; they sit under
 Legacy and say so below.
 
+Everything targets the local PostHog until you switch. To run the same examples
+against a PostHog cloud project, fill in `.env.prod` (`bin/use-prod` writes the
+template the first time), then run `bin/use-prod`, or start `env-use-prod` from
+the sidebar. `bin/use-local` switches back. [AGENTS.md](AGENTS.md#switching-between-local-and-prod)
+has the details, including the few examples that stay local regardless.
+
 [AGENTS.md](AGENTS.md) has an index of every example, where the credentials come
 from, and the conventions for adding a new one.
 

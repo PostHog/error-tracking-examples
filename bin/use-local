@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Point every example at the local PostHog: generate the root .env from
+# .env.local and sync it into every example. bin/use-prod switches to cloud.
+# bin/copy-env does the work; see it for what gets checked.
+exec "$(dirname "$0")/copy-env" local

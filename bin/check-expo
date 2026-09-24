@@ -12,8 +12,9 @@ source context of the deepest one. That is the whole chain the two run-ios varia
   - "symbol set release: none" plus a resolved release is event mode working
   - "release: none resolved" in event mode means the coordinates did not match the app
 
-Reads credentials from the repo root .env. Uses the local dev login, because the query endpoint
-needs more than the error_tracking scope the stored personal API key carries.
+Reads credentials from the repo root .env, so it checks whichever profile bin/copy-env last
+synced. On the local stack it logs in as the dev user, because the query endpoint needs more than
+the error_tracking scope the local key carries; the prod key (.env.prod) carries query:read.
 """
 
 import json
@@ -41,10 +42,19 @@ def read_env() -> dict:
     return values
 
 
-def login(host: str):
+def login(env: dict, host: str):
     jar = CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
     opener.cookiejar = jar
+    opener.project_id = env.get("POSTHOG_CLI_ENV_ID", "1")
+    # Only the local stack has a dev user to log in as. A cloud key is used as is, under a user
+    # agent of its own, since the edge in front of cloud may turn away urllib's default one.
+    if env.get("ENV_PROFILE", "local") != "local":
+        opener.addheaders = [
+            ("User-Agent", "error-tracking-examples"),
+            ("Authorization", f"Bearer {env['POSTHOG_CLI_TOKEN']}"),
+        ]
+        return opener
     attempts = (
         (f"{host}/api/login/dev", {"email": DEV_EMAIL}),
         (f"{host}/api/login", {"email": DEV_EMAIL, "password": DEV_PASSWORD}),
@@ -73,7 +83,7 @@ def post(opener, url: str, payload: dict) -> dict:
 
 
 def query(opener, host: str, hogql: str) -> list:
-    return post(opener, f"{host}/api/projects/1/query/", {"query": {"kind": "HogQLQuery", "query": hogql}}).get(
+    return post(opener, f"{host}/api/projects/{opener.project_id}/query/", {"query": {"kind": "HogQLQuery", "query": hogql}}).get(
         "results", []
     )
 
@@ -107,7 +117,7 @@ def print_context(opener, host: str, frame: dict) -> None:
         return
     results = post(
         opener,
-        f"{host}/api/projects/1/error_tracking/stack_frames/batch_get/",
+        f"{host}/api/projects/{opener.project_id}/error_tracking/stack_frames/batch_get/",
         {"raw_ids": [raw_id]},
     ).get("results", [])
     context = (results[0].get("context") if results else None) or {}
@@ -125,8 +135,8 @@ def print_context(opener, host: str, frame: dict) -> None:
 def main() -> None:
     wanted = sys.argv[1] if len(sys.argv) > 1 else None
     env = read_env()
-    host = env.get("POSTHOG_HOST", "http://localhost:8010")
-    opener = login(host)
+    host = env.get("POSTHOG_CLI_HOST", "http://localhost:8010")
+    opener = login(env, host)
 
     rows = query(
         opener,

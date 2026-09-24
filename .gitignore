@@ -1,5 +1,8 @@
 .DS_Store
+
+# The root .env is generated from a .env.<profile> (bin/copy-env); both hold credentials.
 .env
+/.env.*
 
 # python bytecode (bin/check-*, python-release-env)
 __pycache__/

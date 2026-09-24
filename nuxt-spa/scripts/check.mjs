@@ -4,9 +4,10 @@
 // from build.log), the releases created, and the symbol sets uploaded. Polls until both events
 // are ingested (up to two minutes).
 //
-// Reads credentials from this directory's .env (synced from the repo root by bin/copy-env). The
-// query endpoint needs more than the error_tracking scope the stored personal API key carries, so
-// it logs in as the seeded dev user for that; the release and symbol set lists use the key.
+// Reads credentials from this directory's .env (synced from the repo root by bin/copy-env). On the
+// local stack the query endpoint needs more than the error_tracking scope the stored personal API
+// key carries, so it logs in as the seeded dev user for that; the prod key (.env.prod) carries
+// query:read and is used for everything. The release and symbol set lists always use the key.
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { outputDir, releaseName, run } from './run-config.mjs'
 
@@ -32,9 +33,11 @@ function readEnv() {
 }
 
 const env = readEnv()
-const host = env.POSTHOG_HOST ?? 'http://localhost:8010'
+const host = env.POSTHOG_CLI_HOST ?? 'http://localhost:8010'
 const projectId = env.POSTHOG_CLI_ENV_ID ?? '1'
 const apiKey = env.POSTHOG_CLI_TOKEN
+// Only the local stack has a dev user to log in as.
+const queryWithKey = (env.ENV_PROFILE ?? 'local') !== 'local'
 const probe = JSON.parse(readFileSync(PROBE_FILE, 'utf8'))
 if (probe.run !== run) {
   throw new Error(`${PROBE_FILE} is from run '${probe.run}', but this check is run '${run}' - probe first`)
@@ -67,6 +70,7 @@ function rememberCookies(response) {
 }
 
 async function login() {
+  if (queryWithKey) return
   const attempts = [
     [`${host}/api/login/dev`, { email: DEV_EMAIL }],
     [`${host}/api/login`, { email: DEV_EMAIL, password: DEV_PASSWORD }],
@@ -88,8 +92,9 @@ async function query(hogql) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Cookie: cookieHeader(),
-      'X-CSRFToken': cookies.posthog_csrftoken ?? '',
+      ...(queryWithKey
+        ? { Authorization: `Bearer ${apiKey}` }
+        : { Cookie: cookieHeader(), 'X-CSRFToken': cookies.posthog_csrftoken ?? '' }),
     },
     body: JSON.stringify({ query: { kind: 'HogQLQuery', query: hogql } }),
   })

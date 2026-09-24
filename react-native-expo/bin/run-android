@@ -73,8 +73,12 @@ if [[ -z $("$ADB" devices | sed -n '2p') ]]; then
   until [[ $("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r') == 1 ]]; do sleep 3; done
 fi
 
-POSTHOG_PORT=$(printf '%s' "$EXPO_PUBLIC_POSTHOG_HOST" | sed -E 's#.*:([0-9]+).*#\1#')
-"$ADB" reverse "tcp:$POSTHOG_PORT" "tcp:$POSTHOG_PORT" >/dev/null
+# Only a host on this machine needs its port carried over. A cloud host has no port in its URL, and
+# the emulator reaches it directly.
+if [[ $EXPO_PUBLIC_POSTHOG_HOST =~ ^https?://(localhost|127\.0\.0\.1) ]]; then
+  POSTHOG_PORT=$(printf '%s' "$EXPO_PUBLIC_POSTHOG_HOST" | sed -E 's#.*:([0-9]+).*#\1#')
+  "$ADB" reverse "tcp:$POSTHOG_PORT" "tcp:$POSTHOG_PORT" >/dev/null
+fi
 
 echo
 echo "variant      : $MODE"

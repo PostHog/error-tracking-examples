@@ -2,9 +2,11 @@
 #
 #   mprocs --config mprocs.yaml
 #
-# env-setup runs on every launch (bin/copy-env): it validates the credentials in the root .env
-# against the local PostHog, repairs them where it can, and copies the root .env into every
-# example. Edit env vars in the root .env only — the per-example copies are overwritten.
+# env-setup runs on every launch (bin/copy-env): it regenerates the root .env from the active
+# profile, .env.local (the local PostHog, whose credentials it repairs where it can) or .env.prod
+# (a PostHog cloud project), and copies it into every example. Switch with bin/use-local or
+# bin/use-prod, or start env-use-local / env-use-prod from the sidebar, then restart the example.
+# Edit credentials in .env.local / .env.prod only — the root .env and its copies are overwritten.
 #
 # Every other proc is off by default; start one from the sidebar. Procs are grouped by how the
 # release reaches an exception:
@@ -27,6 +29,19 @@ procs:
     shell: './bin/copy-env'
     autostart: true
     ready_pattern: 'Env sync complete'
+    groups:
+      layer: Setup
+
+  env-use-local:
+    shell: './bin/use-local'
+    autostart: false
+    groups:
+      layer: Setup
+
+  # Fails, and changes nothing, until .env.prod is filled in (its first run writes the template).
+  env-use-prod:
+    shell: './bin/use-prod'
+    autostart: false
     groups:
       layer: Setup
 
