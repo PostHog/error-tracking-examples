@@ -35,6 +35,10 @@ so a run needs nobody to tap the screen. Set `AUTO_CAPTURE=0` to drive it by han
 Switching variants forces a clean prebuild; rerunning the same one reuses the pods and is much
 faster.
 
+`bin/run-android legacy` / `bin/run-android releaseless` is the Android counterpart: the same
+release chain inside Gradle on an emulator, followed by the R8 mapping upload. It has no pnpm script
+or mprocs proc; run it directly.
+
 The variant is also inlined into the bundle, and has to stay that way. A hermes chunk id is derived
 from bundle content, so two variants shipping byte-identical JavaScript would land on one symbol
 set and the second one built would fail with `content_hash_mismatch`.

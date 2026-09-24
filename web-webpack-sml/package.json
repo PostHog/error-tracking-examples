@@ -1,0 +1,19 @@
+{
+  "name": "web-webpack-sml",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reproduces PostHog/posthog-js#4724: webpack + source-map-loader (the CRA setup) emits one warning per unresolvable entry in posthog-js's shipped source maps, because 1.421.1+ strips sourcesContent and the referenced src/*.ts files are not in the published package. `build` shows the warnings against the pinned current release; `build:before` builds the same app against 1.421.0 (the last release with sourcesContent) and is clean.",
+  "scripts": {
+    "build": "webpack --config webpack.config.js",
+    "build:before": "pnpm --dir vendor-before install --ignore-workspace && POSTHOG_JS_DIR=vendor-before/node_modules/posthog-js webpack --config webpack.config.js",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "posthog-js": "1.423.2"
+  },
+  "devDependencies": {
+    "source-map-loader": "^5.0.0",
+    "webpack": "^5.108.0",
+    "webpack-cli": "^6.0.1"
+  }
+}

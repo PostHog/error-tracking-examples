@@ -1,0 +1,31 @@
+{
+  "name": "nuxt-spa",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Client-only Nuxt app (ssr: false) instrumented with @posthog/nuxt, reproducing PostHog/posthog-js#4779: Nitro still writes a server bundle for the API routes, the published module never injects it and then uploads the whole output directory, so the CLI fails on the first uninjected server chunk (caught, build green) and server exceptions never symbolicate; the upload also carries no release flags, so it resolves a release derived from the git checkout next to the configured one. `start` builds with the published module and shows the server exception unresolved; `start:keep` does the same with deleteAfterUpload: false, where the one failing upload drops the client sourcemaps too; `start:fixed` and `start:fixed:keep` build with the PR branch packed into vendor/ and show both resolved. Every run triggers one server and one client exception headlessly, then reads the result back from PostHog.",
+  "scripts": {
+    "clean": "rm -rf .nuxt .output build.log",
+    "build": "node scripts/build.mjs",
+    "probe": "node scripts/probe.mjs",
+    "check": "node scripts/check.mjs",
+    "start": "pnpm clean && pnpm build && pnpm probe && pnpm check",
+    "start:fixed": "POSTHOG_NUXT_VARIANT=pr4779 pnpm start",
+    "start:keep": "POSTHOG_DELETE_AFTER_UPLOAD=false pnpm start",
+    "start:fixed:keep": "POSTHOG_NUXT_VARIANT=pr4779 POSTHOG_DELETE_AFTER_UPLOAD=false pnpm start"
+  },
+  "dependencies": {
+    "@posthog/nuxt": "1.7.87",
+    "@posthog/nuxt-pr4779": "file:./vendor/posthog-nuxt.tgz",
+    "nuxt": "^4.5.2"
+  },
+  "devDependencies": {
+    "@posthog/cli": "^0.16.2",
+    "playwright-core": "^1.63.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@posthog/cli"
+    ]
+  }
+}

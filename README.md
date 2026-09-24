@@ -1,7 +1,9 @@
 # error-tracking-examples
 
 Small apps that exercise PostHog error tracking end to end against a local
-PostHog, one per SDK/tooling combination.
+PostHog, one per SDK/tooling combination. Each one builds, uploads its symbols,
+runs and captures an exception, so one command shows whether the whole chain
+works.
 
 ```bash
 mprocs --config mprocs.yaml
@@ -15,7 +17,16 @@ grouped by how the release is associated with exceptions:
   symbol set, and an exception inherits the release of the symbol sets its
   frames resolved against.
 - **Releaseless** — `--release-mode=event`. Symbol sets are uploaded
-  release-independent and each event resolves its own release.
+  release-independent and each event resolves its own release, from an id the
+  upload injected into the build output.
+- **Release env** — nothing is injected: the release is resolved before launch
+  and handed to the SDK in `POSTHOG_RELEASE_ID`.
+
+A few examples reproduce a specific bug rather than a flow; they sit under
+Legacy and say so below.
+
+[AGENTS.md](AGENTS.md) has an index of every example, where the credentials come
+from, and the conventions for adding a new one.
 
 ## Android
 
@@ -101,7 +112,8 @@ build phase looks first. See [react-native-expo/README.md](react-native-expo/REA
 
 ## iOS
 
-`ios-raw` is a plain Xcode project with no proc — open it in Xcode.
+`ios-raw` is a plain Xcode project with no proc — open it in Xcode. It builds against the
+posthog-ios checkout next to this repo (`../posthog-ios`) as a local Swift package.
 
 ## Rust
 
@@ -177,6 +189,35 @@ symbol set — is unchanged:
 the symbolicated in-app frames for the most recent occurrence of each — the whole chain end to
 end.
 
+`rust-release-env` is the third way: symbols upload release-independent as in `rust-releaseless`,
+but nothing is written into the binary. See [Release id from the environment](#release-id-from-the-environment).
+
+## Release id from the environment
+
+`rust-release-env`, `python-release-env`, `ruby-release-env` and `php-release-env` are one flow in
+four SDKs. `./run` resolves the release with `posthog-cli release resolve`, which creates it on
+first use and prints only its id, exports that id as `POSTHOG_RELEASE_ID` and launches the app. The
+SDK reads it when the client is created and reports it as `$release_id` on every event, not only on
+exceptions. Nothing in the app names the release, and running it directly rather than through
+`./run` reports none.
+
+```bash
+rust-release-env/run                     # or python-release-env/run, ruby-…, php-…
+APP_VERSION=2.0.0 rust-release-env/run   # the same code as a second release
+```
+
+Only the Rust one uploads symbols (`symbol-sets upload --release-mode=event`, as in
+`rust-releaseless`). Python, Ruby and PHP frames carry their own source context, so there is nothing
+to upload.
+
+All four run the working copy of posthog-cli through `bin/posthog-cli-local`, and build against a
+working copy of their SDK in a sibling checkout, because reading `POSTHOG_RELEASE_ID` has not
+shipped: `../posthog-rs` as a cargo path dependency, and a wheel, a gem and a composer path
+repository built from `../posthog-python`, `../posthog-ruby` and `../posthog-php`
+(`POSTHOG_PYTHON_REPO` and `POSTHOG_RUBY_REPO` override the first two). Those three build a real
+package on every run instead of linking the checkout, so a run also proves the change ships in it.
+They need `uv`, `ruby` and `composer` respectively.
+
 The upload has to come from the very build that runs, since every build gets a new UUID. The CLI
 walks all of `target/release`, `deps/` and `build/` included, so it warns once per build script and
 proc-macro dylib that carries no debug info — noise, not a problem; the line to look for is
@@ -237,7 +278,70 @@ chunk id and release id against symbol sets the CLI has replaced.
 `flutter build web --source-maps` writes no `sourcesContent`. Frames read back with their Dart
 names and file positions, but the UI has no source lines to show under them.
 
+## Node
+
+`node-raw`, `node-rollup` and `node-webpack` are one three-file app built three ways: esbuild plus
+a bare `posthog-cli sourcemap process` with no bundler plugin, `@posthog/rollup-plugin`, and
+`@posthog/webpack-plugin`, which splits the throwing module into a chunk of its own so one stack
+resolves across two symbol sets. `next-webpack` is a Next.js app router app built through
+`@posthog/nextjs-config`; its run starts the server and probes a route that throws server-side.
+Every one of them has `pnpm start` (legacy) and `pnpm start:releaseless`, runs headless and exits.
+
+```bash
+cd node-raw && pnpm start               # legacy
+cd node-raw && pnpm start:releaseless   # event mode
+```
+
+`node-raw` uses only published packages. The other three consume plugin and SDK builds packed from
+posthog-js branches into `vendor/*.tgz`; their READMEs name the branch and how to repack it.
+
+`node-legacy-sdk` is `node-raw` uploaded with `--release-mode=event`, against the last posthog-node
+that predates `$release_id` (5.46.1, pinned to `@posthog/core` 1.45.1 — the caret range otherwise
+pulls a core that already reports the injected id). The symbol sets carry no release and the SDK
+reports none, so the exception resolves to no release at all, and the UI shows a banner asking you
+to update the SDK.
+
+```bash
+cd node-raw && pnpm start:releaseless   # event mode, current SDK: the release resolves
+cd node-legacy-sdk && pnpm start        # event mode, SDK too old to report it: no release
+```
+
+The exception message differs from `node-raw`, so the two land in their own issues and can be
+compared side by side.
+
+## Nuxt
+
+`nuxt-spa` is a client-only Nuxt 4 app (`ssr: false`) built with `@posthog/nuxt`, reproducing
+[PostHog/posthog-js#4779](https://github.com/PostHog/posthog-js/pull/4779): Nitro still writes a
+server bundle for the API routes, the published module never injects it and then uploads the whole
+output directory, so the CLI fails on the first uninjected server chunk, the module catches the
+error, the build stays green, and server exceptions keep their bundle paths. The same upload
+carries no release flags, so it resolves a release derived from the git checkout next to the
+configured one. Each run builds, triggers one server and one client exception headlessly, and
+reads back from PostHog what each resolved to:
+
+```bash
+cd nuxt-spa
+pnpm start              # published 1.7.87: server not symbolicated, client symbolicated
+pnpm start:keep         # same with deleteAfterUpload: false: neither is symbolicated
+pnpm start:fixed        # the PR branch, packed into vendor/: both symbolicated
+pnpm start:fixed:keep   # the PR branch with deleteAfterUpload: false: both symbolicated
+```
+
+The PR build is installed under the alias `@posthog/nuxt-pr4779` next to the published module,
+so the two share one `node_modules`. See its README for why every run gets its own output
+directory and port.
+
 ## Web
+
+`web-raw` is `node-raw` in the browser: esbuild with code splitting, a bare `posthog-cli sourcemap
+process`, then a static server on http://localhost:8080. Open the page to capture the exception.
+It runs a posthog-js build vendored into `vendor/posthog-js`.
+
+`web-vite-sri3` reproduces a customer-reported incompatibility between `@posthog/rollup-plugin` and
+`vite-plugin-sri3`: the SRI hashes are computed before the plugin rewrites the bundles, so the
+browser blocks every script. `pnpm start` prints the hash mismatches and serves the blank page, by
+design. See its README.
 
 `web-angular-sw` is an Angular 22 app with `@angular/service-worker`, reproducing
 [PostHog/posthog#86046](https://github.com/PostHog/posthog/issues/86046): `ng build` records a
@@ -246,3 +350,12 @@ the service worker rejects the new version and keeps serving the cached one. `pn
 both halves — `verify:broken` expects the `main-*.js` hash to mismatch after inject, `verify:fixed`
 expects every hash to match after `ngsw-config` regenerates the manifest — and `pnpm test:browser`
 replays the failure and the fix in headless Chrome. See its README for the details.
+
+`web-webpack-sml` reproduces
+[PostHog/posthog-js#4724](https://github.com/PostHog/posthog-js/issues/4724): a webpack 5 build
+with `source-map-loader` (the create-react-app setup) prints 126 "Failed to parse source map"
+warnings, because posthog-js 1.421.1+ ships maps without `sourcesContent` whose `sources` point at
+files the published package does not contain. `pnpm build` shows the warnings against the pinned
+current release; `pnpm build:before` aliases the same build to 1.421.0 — the last release with
+`sourcesContent`, found by bisecting — and is clean. Build-time only, no credentials needed. See
+its README for what each build leaves in the consumer's own output map.

@@ -1,0 +1,9 @@
+[project]
+name = "python-release-env"
+version = "1.0.0"
+description = "Minimal Python app instrumented with PostHog error tracking; the release id comes from POSTHOG_RELEASE_ID at runtime (posthog-cli release resolve prints it) and the SDK reports it as $release_id"
+requires-python = ">=3.10"
+# posthog is not listed here: ./run builds a wheel from the working copy of posthog-python into
+# vendor/ and installs that, because reading the release id from POSTHOG_RELEASE_ID has not
+# shipped in a release yet.
+dependencies = []

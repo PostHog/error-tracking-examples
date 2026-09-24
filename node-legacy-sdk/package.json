@@ -1,0 +1,29 @@
+{
+  "name": "node-legacy-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "node-raw uploaded with --release-mode=event, against the last posthog-node that predates $release_id. The symbol sets carry no release and the SDK reports none, so the exception resolves to no release at all.",
+  "scripts": {
+    "build": "esbuild src/*.ts --outdir=dist --platform=node --format=cjs --minify --sourcemap",
+    "clean": "rm -rf dist",
+    "process": "posthog-cli --dotenv-file .env sourcemap process --directory ./dist --release-mode=event",
+    "run:app": "node --env-file=.env dist/index.js",
+    "start": "pnpm clean && pnpm build && pnpm process && pnpm run:app"
+  },
+  "dependencies": {
+    "posthog-node": "5.46.1"
+  },
+  "devDependencies": {
+    "@posthog/cli": "^0.13.3",
+    "esbuild": "^0.25.9"
+  },
+  "pnpm": {
+    "overrides": {
+      "@posthog/core": "1.45.1"
+    },
+    "onlyBuiltDependencies": [
+      "@posthog/cli",
+      "esbuild"
+    ]
+  }
+}

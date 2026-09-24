@@ -2,51 +2,22 @@
 #
 #   mprocs --config mprocs.yaml
 #
-# env-setup runs automatically on every launch: it bootstraps the root .env
-# (for project 1) if it is missing, validates the credentials
-# in the root .env against the local PostHog instance (minting a fresh
-# error_tracking-scoped personal API key if the stored one is dead, and
-# re-syncing POSTHOG_KEY with the project's token), then copies the root .env
-# into each child project (bin/copy-env). Edit env vars in the root .env only —
-# the per-project copies are overwritten on startup.
+# env-setup runs on every launch (bin/copy-env): it validates the credentials in the root .env
+# against the local PostHog, repairs them where it can, and copies the root .env into every
+# example. Edit env vars in the root .env only — the per-example copies are overwritten.
 #
-# All example procs are off by default — start each one manually from the
-# mprocs UI. Most examples appear twice, one proc per sidebar group: the normal
-# release-binding flow (Legacy) and the experimental --release-mode=event flow
-# (Releaseless). The android ones are two separate projects instead of two procs
-# over one, so each gets its own applicationId, release and mapping. web-vite-sri3 differs: it reproduces the
-# @posthog/rollup-plugin x vite-plugin-sri3 incompatibility, so its single
-# (Legacy) proc fails the SRI check every time by design.
-# web-angular-sw reproduces PostHog/posthog#86046 (sourcemap inject vs the Angular
-# service worker's ngsw.json hashes) and then verifies the ngsw-config fix.
-# (ios-raw is a Swift app with no package.json, so it has no proc here.) The rust ones are
-# two separate projects as well, rust-raw and rust-releaseless: they build against different
-# posthog-rs versions (the published crate vs the working copy that carries the release marker),
-# and each gets its own release.
+# Every other proc is off by default; start one from the sidebar. Procs are grouped by how the
+# release reaches an exception:
 #
-# The android-* procs build against a local working copy of posthog-android,
-# published to ~/.m2 on the way, because `posthog.releaseMode` is unreleased;
-# the mapping upload uses the published posthog-cli off PATH. Each one boots the
-# emulator if none is attached, installs its APK and streams its logs; tap
-# "Capture exception" in the app to send one. Set POSTHOG_SKIP_DEPS=1 to skip
-# the republish once it is current.
+#   Legacy       the upload binds the symbol set to a release
+#   Releaseless  --release-mode=event: symbol sets are release-independent and the release id is
+#                injected into the build output, which the SDK reports as $release_id
+#   Release env  the release id is resolved before launch and handed to the SDK in
+#                POSTHOG_RELEASE_ID
 #
-# The expo procs run a locally built posthog-cli, because `hermes clone --release-mode`
-# has not shipped either. The export-only procs reach it through bin/posthog-cli-local;
-# the full iOS builds go through bin/install-posthog-cli-local instead, which symlinks
-# ~/.posthog/posthog-cli at the build, since that is where an Xcode build phase looks
-# first. Both build the CLI on the way, so the first run is slow.
-#
-# The flutter-web procs need no local build of anything: the released
-# posthog_flutter already reports the injected release id, because on web it
-# hands the exception to posthog-js, which reads it. They do need flutter on
-# PATH, and the published posthog-cli (0.13.0 or newer, where `sourcemap
-# inject --release-mode` landed).
-#
-# rust-releaseless runs the locally built posthog-cli too (`symbol-sets upload --release-mode`
-# is unreleased), through bin/posthog-cli-local, and builds against the working copy of
-# posthog-rs, because the release marker — the placeholder the CLI overwrites with the release
-# id, which the SDK then reports as `$release_id` — has not shipped either.
+# Bug reproductions sit under Legacy. What each example needs (toolchains, local SDK checkouts) is
+# in README.md and the example's own README; conventions for adding one are in AGENTS.md.
+# (ios-raw is an Xcode project run from Xcode, so it has no proc here.)
 
 procs:
   # Named to sort alphabetically before every example: phrocs selects the
@@ -106,6 +77,13 @@ procs:
     groups:
       layer: Releaseless
 
+  node-legacy-sdk:
+    shell: 'pnpm install && pnpm start'
+    cwd: node-legacy-sdk
+    autostart: false
+    groups:
+      layer: Releaseless
+
   node-rollup:
     shell: 'pnpm install && pnpm start'
     cwd: node-rollup
@@ -133,6 +111,34 @@ procs:
     autostart: false
     groups:
       layer: Releaseless
+
+  nuxt-spa:
+    shell: 'pnpm install && pnpm start'
+    cwd: nuxt-spa
+    autostart: false
+    groups:
+      layer: Legacy
+
+  nuxt-spa (keep maps):
+    shell: 'pnpm install && pnpm start:keep'
+    cwd: nuxt-spa
+    autostart: false
+    groups:
+      layer: Legacy
+
+  nuxt-spa (pr4779):
+    shell: 'pnpm install && pnpm start:fixed'
+    cwd: nuxt-spa
+    autostart: false
+    groups:
+      layer: Legacy
+
+  nuxt-spa (pr4779, keep maps):
+    shell: 'pnpm install && pnpm start:fixed:keep'
+    cwd: nuxt-spa
+    autostart: false
+    groups:
+      layer: Legacy
 
   node-webpack:
     shell: 'pnpm install && pnpm start'
@@ -202,6 +208,39 @@ procs:
     groups:
       layer: Releaseless
 
+  # The release id comes from the environment instead of the build: `./run` resolves the release
+  # with `posthog-cli release resolve` and launches the app with its id in POSTHOG_RELEASE_ID, which
+  # the SDK reports as $release_id. Each builds against the working copy of its SDK, a sibling
+  # checkout, because reading POSTHOG_RELEASE_ID has not shipped. `APP_VERSION=2.0.0 ./run` ships
+  # the same code again as a second release.
+  rust-release-env:
+    shell: './run'
+    cwd: rust-release-env
+    autostart: false
+    groups:
+      layer: Release env
+
+  python-release-env:
+    shell: './run'
+    cwd: python-release-env
+    autostart: false
+    groups:
+      layer: Release env
+
+  ruby-release-env:
+    shell: './run'
+    cwd: ruby-release-env
+    autostart: false
+    groups:
+      layer: Release env
+
+  php-release-env:
+    shell: './run'
+    cwd: php-release-env
+    autostart: false
+    groups:
+      layer: Release env
+
   web-raw:
     shell: 'pnpm install && pnpm start'
     cwd: web-raw
@@ -230,8 +269,15 @@ procs:
     groups:
       layer: Legacy
 
+  web-webpack-sml:
+    shell: 'pnpm install && pnpm build; pnpm build:before'
+    cwd: web-webpack-sml
+    autostart: false
+    groups:
+      layer: Legacy
+
 # Grouping dimension the sidebar starts grouped by (press `g` to cycle/disable).
 default_group: layer
 
 group_order:
-  layer: [Setup, Legacy, Releaseless]
+  layer: [Setup, Legacy, Releaseless, Release env]

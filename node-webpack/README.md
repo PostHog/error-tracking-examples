@@ -63,7 +63,6 @@ cd <this-app> && rm -rf node_modules && pnpm install
 ## Run
 
 ```bash
-cp .env.example .env    # then edit if you're not on the local-dev defaults
 pnpm install
 pnpm start              # clean + build (uploads source maps) + run (captures the exception)
 pnpm start:releaseless  # same, on the --release-mode=event path
@@ -82,12 +81,9 @@ pnpm build:releaseless && grep -o '//# debugId=[a-f0-9-]*' dist/*.js   # rebuild
 
 ## Credentials
 
-Two different keys, two different jobs (see `.env.example`):
+`bin/copy-env` syncs the repo root `.env` into this folder (the `env-setup` proc runs it on every
+mprocs launch). Two different keys, two different jobs:
 
 - `POSTHOG_KEY` — public **project** key, used by the SDK at runtime.
 - `POSTHOG_API_KEY` — **personal** API key with error-tracking write scope, used to upload source maps
-  at build time.
-
-The defaults in `.env.example` target a local PostHog instance (`http://localhost:8010`). The personal
-key is the deterministic local-dev key; the project key is per-database (the file explains how to fetch
-the current one).
+  at build time, into project `POSTHOG_PROJECT_ID`.

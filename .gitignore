@@ -1,8 +1,12 @@
 .DS_Store
 .env
 
-# python bytecode from bin/check-expo
+# python bytecode (bin/check-*, python-release-env)
 __pycache__/
 
 # Rust build output (rust-raw, rust-releaseless, rust-release-env, …)
 target/
+
+# Data dumps and exports never belong in this repo, but never commit one by accident either.
+*.parquet
+*.csv

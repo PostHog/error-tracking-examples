@@ -1,0 +1,9 @@
+{
+  "name": "vendor-before",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Holds posthog-js 1.421.0 — the last release whose source maps still carry sourcesContent — so `pnpm build:before` can alias the import at it and show the same webpack build with zero warnings.",
+  "dependencies": {
+    "posthog-js": "1.421.0"
+  }
+}

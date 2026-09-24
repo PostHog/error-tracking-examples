@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Build a gem from the working copy of posthog-ruby, resolve the release with posthog-cli, export
+# its id as POSTHOG_RELEASE_ID, and run the app. The SDK reads POSTHOG_RELEASE_ID when the client is
+# created and reports it as $release_id on every event. Ruby frames carry their own source context,
+# so there is no symbol set to upload. Pass a version to ship the same code as a second release:
+# APP_VERSION=2.0.0 ./run.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+APP_NAME=ruby-release-env
+APP_VERSION=${APP_VERSION:-1.0.0}
+
+if ! command -v gem >/dev/null; then
+  echo "error: ruby not found — install it (https://www.ruby-lang.org/en/documentation/installation/)" >&2
+  exit 1
+fi
+POSTHOG_RUBY_REPO=${POSTHOG_RUBY_REPO:-"$(cd ../../posthog-ruby && pwd)"}
+
+# A real gem build, not a path dependency, so the run also proves the change ships in the gem. The
+# gem goes into its own GEM_HOME under vendor/, so nothing is installed into the system gems.
+rm -rf vendor
+mkdir -p vendor
+VENDOR=$PWD/vendor
+(cd "$POSTHOG_RUBY_REPO" && gem build --quiet posthog-ruby.gemspec --output "$VENDOR/posthog-ruby.gem" >/dev/null)
+export GEM_HOME=$VENDOR/gems
+export GEM_PATH=$GEM_HOME
+gem install --quiet --no-document vendor/posthog-ruby.gem
+
+# Create (or look up) the release and capture its id. `release resolve` prints only the id.
+RELEASE_ID=$(../bin/posthog-cli-local --dotenv-file .env release resolve \
+  --release-name "$APP_NAME" --release-version "$APP_VERSION")
+
+# The app takes the key and host from the process environment, and the SDK takes the release id
+# from POSTHOG_RELEASE_ID.
+set -a
+. ./.env
+set +a
+export POSTHOG_RELEASE_ID=$RELEASE_ID
+echo "running $APP_NAME as release $APP_NAME@$APP_VERSION (POSTHOG_RELEASE_ID=$RELEASE_ID)"
+exec ruby main.rb
